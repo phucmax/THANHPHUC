@@ -1,15 +1,20 @@
 --!strict
--- ReplicatedStorage/BananaUI.lua
--- Banana-style UI (sidebar left + main right) inspired by screenshot layout
+-- BananaUI.lua (Studio-friendly)
+-- UI layout: left sidebar (avatar + tabs) + right content with centered title
+-- Search: only icon ðŸ”Ž to toggle search box (no "Search..." label)
+-- Theme: customizable colors + optional rainbow/waves animated border
+-- Floating toggle button (draggable) like in screenshot, to show/hide menu
+
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
 
 local BananaUI = {}
 BananaUI.__index = BananaUI
 
--- ========= helpers =========
-local function new(className: string, props: {[string]: any}?)
+-- ===== helpers =====
+local function new(className: string, props: {[string]: any}?): Instance
 	local inst = Instance.new(className)
 	if props then
 		for k, v in pairs(props) do
@@ -60,27 +65,46 @@ local function tween(inst: Instance, ti: TweenInfo, goal: {[string]: any})
 	return tw
 end
 
--- ========= theme =========
-local Theme = {}
-Theme.__index = Theme
+local function clamp(n: number, a: number, b: number): number
+	if n < a then return a end
+	if n > b then return b end
+	return n
+end
 
-function Theme.BananaDark(accent: Color3?)
+local function isPointerDown(input: InputObject)
+	return input.UserInputType == Enum.UserInputType.MouseButton1
+		or input.UserInputType == Enum.UserInputType.Touch
+end
+
+-- ===== theme =====
+export type Theme = {
+	Accent: Color3,
+	Bg: Color3,
+	Panel: Color3,
+	Panel2: Color3,
+	Stroke: Color3,
+	Text: Color3,
+	SubText: Color3,
+	Row: Color3,
+	RowHover: Color3,
+}
+
+local function bananaTheme(accent: Color3?): Theme
 	local a = accent or Color3.fromRGB(220, 180, 60)
 	return {
 		Accent = a,
-		Bg = Color3.fromRGB(18, 18, 18),
-		Panel = Color3.fromRGB(28, 28, 28),
-		Panel2 = Color3.fromRGB(34, 34, 34),
+		Bg = Color3.fromRGB(10, 10, 10),
+		Panel = Color3.fromRGB(18, 18, 18),
+		Panel2 = Color3.fromRGB(28, 28, 28),
 		Stroke = Color3.fromRGB(70, 70, 70),
 		Text = Color3.fromRGB(235, 235, 235),
 		SubText = Color3.fromRGB(170, 170, 170),
-		Row = Color3.fromRGB(30, 30, 30),
-		RowHover = Color3.fromRGB(38, 38, 38),
-		Button = Color3.fromRGB(50, 50, 50),
+		Row = Color3.fromRGB(24, 24, 24),
+		RowHover = Color3.fromRGB(34, 34, 34),
 	}
 end
 
--- ========= objects =========
+-- ===== objects =====
 local Window = {}
 Window.__index = Window
 
@@ -90,7 +114,37 @@ Tab.__index = Tab
 local Section = {}
 Section.__index = Section
 
--- ========= Section components =========
+-- ===== rainbow border "waves" =====
+local function attachRainbowBorder(frame: Frame, thickness: number)
+	local s = stroke(frame, thickness, Color3.fromRGB(255,255,255), 0)
+	local grad = Instance.new("UIGradient")
+	grad.Color = ColorSequence.new({
+		ColorSequenceKeypoint.new(0.00, Color3.fromRGB(255, 70, 70)),
+		ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 180, 70)),
+		ColorSequenceKeypoint.new(0.34, Color3.fromRGB(255, 255, 70)),
+		ColorSequenceKeypoint.new(0.51, Color3.fromRGB(70, 255, 140)),
+		ColorSequenceKeypoint.new(0.68, Color3.fromRGB(70, 170, 255)),
+		ColorSequenceKeypoint.new(0.85, Color3.fromRGB(190, 70, 255)),
+		ColorSequenceKeypoint.new(1.00, Color3.fromRGB(255, 70, 170)),
+	})
+	grad.Rotation = 0
+	grad.Parent = s
+
+	-- animated wave: rotate gradient
+	local conn = RunService.RenderStepped:Connect(function(dt)
+		grad.Rotation = (grad.Rotation + dt * 60) % 360
+	end)
+
+	return {
+		Stroke = s,
+		Gradient = grad,
+		Disconnect = function()
+			conn:Disconnect()
+		end
+	}
+end
+
+-- ===== Section row base =====
 local function makeRowBase(sec: any, height: number): Frame
 	local row = new("Frame", {
 		BackgroundColor3 = sec._theme.Row,
@@ -101,7 +155,6 @@ local function makeRowBase(sec: any, height: number): Frame
 	stroke(row, 1, sec._theme.Stroke, 0.35)
 	pad(row, 10, 6, 10, 6)
 
-	-- hover
 	row.MouseEnter:Connect(function()
 		tween(row, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
 			BackgroundColor3 = sec._theme.RowHover,
@@ -116,10 +169,11 @@ local function makeRowBase(sec: any, height: number): Frame
 	return row
 end
 
+-- ===== Components =====
 function Section:AddActionRow(text: string, onClick: (() -> ())?)
 	local row = makeRowBase(self, 40)
 
-	local label = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = text,
 		Font = Enum.Font.Gotham,
@@ -153,7 +207,7 @@ end
 function Section:AddToggle(text: string, default: boolean, onChanged: ((boolean) -> ())?)
 	local row = makeRowBase(self, 40)
 
-	local label = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = text,
 		Font = Enum.Font.Gotham,
@@ -165,7 +219,7 @@ function Section:AddToggle(text: string, default: boolean, onChanged: ((boolean)
 	})
 
 	local box = new("TextButton", {
-		BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+		BackgroundColor3 = Color3.fromRGB(18, 18, 18),
 		Text = "",
 		Size = UDim2.new(0, 22, 0, 22),
 		AnchorPoint = Vector2.new(1, 0.5),
@@ -202,11 +256,11 @@ end
 function Section:AddSlider(text: string, opts: {Min:number, Max:number, Default:number?, Step:number?}, onChanged: ((number)->())?)
 	local minV, maxV = opts.Min, opts.Max
 	local step = opts.Step or 1
-	local value = math.clamp(opts.Default or minV, minV, maxV)
+	local value = clamp(opts.Default or minV, minV, maxV)
 
 	local row = makeRowBase(self, 52)
 
-	local label = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = text,
 		Font = Enum.Font.Gotham,
@@ -231,7 +285,7 @@ function Section:AddSlider(text: string, opts: {Min:number, Max:number, Default:
 	})
 
 	local bar = new("Frame", {
-		BackgroundColor3 = Color3.fromRGB(22, 22, 22),
+		BackgroundColor3 = Color3.fromRGB(18, 18, 18),
 		Size = UDim2.new(1, 0, 0, 10),
 		Position = UDim2.new(0, 0, 0, 30),
 		Parent = row,
@@ -258,10 +312,9 @@ function Section:AddSlider(text: string, opts: {Min:number, Max:number, Default:
 	local dragging = false
 
 	local function apply(v: number)
-		v = math.clamp(v, minV, maxV)
-		-- step snap
+		v = clamp(v, minV, maxV)
 		v = math.floor((v - minV) / step + 0.5) * step + minV
-		v = math.clamp(v, minV, maxV)
+		v = clamp(v, minV, maxV)
 
 		value = v
 		local t = (value - minV) / (maxV - minV)
@@ -272,14 +325,13 @@ function Section:AddSlider(text: string, opts: {Min:number, Max:number, Default:
 	end
 
 	local function setFromX(x: number)
-		local rel = math.clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
+		local rel = clamp((x - bar.AbsolutePosition.X) / bar.AbsoluteSize.X, 0, 1)
 		local raw = minV + rel * (maxV - minV)
 		apply(raw)
 	end
 
 	bar.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
+		if isPointerDown(input) then
 			dragging = true
 			setFromX(input.Position.X)
 		end
@@ -294,8 +346,7 @@ function Section:AddSlider(text: string, opts: {Min:number, Max:number, Default:
 	end)
 
 	UIS.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
+		if isPointerDown(input) then
 			dragging = false
 		end
 	end)
@@ -322,7 +373,7 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 		Parent = row,
 	})
 
-	local arrow = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = ">",
 		Font = Enum.Font.GothamBold,
@@ -334,14 +385,12 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 		Parent = row,
 	})
 
-	-- simple popup list (overlay inside window)
 	local popup: Frame? = nil
+	local closeConn: RBXScriptConnection? = nil
 
 	local function close()
-		if popup then
-			popup:Destroy()
-			popup = nil
-		end
+		if closeConn then closeConn:Disconnect(); closeConn = nil end
+		if popup then popup:Destroy(); popup = nil end
 	end
 
 	local function open()
@@ -350,7 +399,7 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 
 		popup = new("Frame", {
 			BackgroundColor3 = self._theme.Panel2,
-			Size = UDim2.fromOffset(260, 220),
+			Size = UDim2.fromOffset(270, 230),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(0.5, 0, 0.5, 0),
 			Parent = root,
@@ -358,7 +407,7 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 		round(popup, 12)
 		stroke(popup, 1, self._theme.Stroke, 0.2)
 
-		local title = new("TextLabel", {
+		new("TextLabel", {
 			BackgroundTransparency = 1,
 			Text = text,
 			Font = Enum.Font.GothamBold,
@@ -370,17 +419,16 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 			Parent = popup,
 		})
 
-		local searchBox: TextBox? = nil
 		local listTop = 38
+		local searchBox: TextBox? = nil
 		if opts.Search then
 			searchBox = new("TextBox", {
-				BackgroundColor3 = Color3.fromRGB(20, 20, 20),
+				BackgroundColor3 = Color3.fromRGB(18, 18, 18),
 				Text = "",
-				PlaceholderText = "Search...",
 				Font = Enum.Font.Gotham,
 				TextSize = 13,
 				TextColor3 = self._theme.Text,
-				PlaceholderColor3 = self._theme.SubText,
+				PlaceholderText = "",
 				ClearTextOnFocus = false,
 				Size = UDim2.new(1, -20, 0, 28),
 				Position = UDim2.new(0, 10, 0, 34),
@@ -406,12 +454,11 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 			for _, ch in ipairs(sc:GetChildren()) do
 				if ch:IsA("TextButton") then ch:Destroy() end
 			end
-
 			local f = (filter or ""):lower()
 			for _, it in ipairs(items) do
 				if f == "" or it:lower():find(f, 1, true) then
 					local b = new("TextButton", {
-						BackgroundColor3 = Color3.fromRGB(22, 22, 22),
+						BackgroundColor3 = Color3.fromRGB(18, 18, 18),
 						Text = it,
 						Font = Enum.Font.Gotham,
 						TextSize = 13,
@@ -421,7 +468,6 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 					})
 					round(b, 8)
 					stroke(b, 1, self._theme.Stroke, 0.45)
-
 					b.MouseButton1Click:Connect(function()
 						current = it
 						label.Text = text .. ": " .. current
@@ -430,29 +476,25 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 					end)
 				end
 			end
-
 			task.defer(function()
 				sc.CanvasSize = UDim2.new(0,0,0, lay.AbsoluteContentSize.Y + 6)
 			end)
 		end
 
 		rebuild(nil)
-
 		if searchBox then
 			searchBox:GetPropertyChangedSignal("Text"):Connect(function()
 				rebuild(searchBox.Text)
 			end)
 		end
 
-		-- click outside to close
-		root.MouseButton1Click:Connect(function()
+		closeConn = root.MouseButton1Click:Connect(function()
 			close()
 		end)
 	end
 
-	(row :: any).InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1
-			or input.UserInputType == Enum.UserInputType.Touch then
+	row.InputBegan:Connect(function(input)
+		if isPointerDown(input) then
 			if popup then close() else open() end
 		end
 	end)
@@ -470,7 +512,7 @@ end
 function Section:AddStatus(text: string, value: any)
 	local row = makeRowBase(self, 34)
 
-	local left = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = text,
 		Font = Enum.Font.Gotham,
@@ -485,7 +527,7 @@ function Section:AddStatus(text: string, value: any)
 	local rightColor = self._theme.SubText
 
 	if typeof(value) == "boolean" then
-		rightText = value and "✓" or "✗"
+		rightText = value and "âœ“" or "âœ—"
 		rightColor = value and Color3.fromRGB(120, 220, 140) or Color3.fromRGB(240, 90, 90)
 	else
 		rightText = tostring(value)
@@ -507,7 +549,7 @@ function Section:AddStatus(text: string, value: any)
 	return {
 		Set = function(v: any)
 			if typeof(v) == "boolean" then
-				right.Text = v and "✓" or "✗"
+				right.Text = v and "âœ“" or "âœ—"
 				right.TextColor3 = v and Color3.fromRGB(120, 220, 140) or Color3.fromRGB(240, 90, 90)
 			else
 				right.Text = tostring(v)
@@ -517,7 +559,7 @@ function Section:AddStatus(text: string, value: any)
 	}
 end
 
--- ========= Tab / Window =========
+-- ===== Tab / Window =====
 function Tab:AddSection(title: string)
 	local secFrame = new("Frame", {
 		BackgroundTransparency = 1,
@@ -526,7 +568,7 @@ function Tab:AddSection(title: string)
 		Parent = self._content,
 	})
 
-	local header = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = title,
 		Font = Enum.Font.GothamBold,
@@ -543,18 +585,12 @@ function Tab:AddSection(title: string)
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Parent = secFrame,
 	})
-
-	local lay = listLayout(list, 8)
-	lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-		-- auto handled by AutomaticSize, but keep for safety
-	end)
+	listLayout(list, 8)
 
 	local sec = setmetatable({
-		_frame = secFrame,
 		_list = list,
 		_theme = self._theme,
 		_window = self._window,
-		_tab = self,
 	}, Section)
 
 	table.insert(self._sections, sec)
@@ -563,11 +599,7 @@ end
 
 function Tab:_setVisible(v: boolean)
 	self._content.Visible = v
-	self._button.BackgroundColor3 = v and self._theme.Panel2 or Color3.fromRGB(24,24,24)
-end
-
-function Tab:EnableSearch()
-	self._searchEnabled = true
+	self._button.BackgroundColor3 = v and self._theme.Panel2 or Color3.fromRGB(18,18,18)
 end
 
 function Window:_applyFilter(text: string)
@@ -578,7 +610,6 @@ function Window:_applyFilter(text: string)
 	for _, sec in ipairs(tab._sections) do
 		for _, row in ipairs(sec._list:GetChildren()) do
 			if row:IsA("Frame") then
-				-- try collect labels/buttons text
 				local found = false
 				for _, d in ipairs(row:GetDescendants()) do
 					if d:IsA("TextLabel") or d:IsA("TextButton") then
@@ -602,18 +633,19 @@ function Window:_switchTab(name: string)
 	end
 	self._activeTab = name
 	local t = self._tabs[name]
-	if t then
-		t:_setVisible(true)
-	end
-	-- clear filter when switching
+	if t then t:_setVisible(true) end
+
+	-- update header title to active tab
+	self._tabTitle.Text = name
+
+	-- clear filter
 	self._mainSearch.Text = ""
 	self:_applyFilter("")
 end
 
 function Window:AddTab(name: string)
-	-- sidebar button
 	local btn = new("TextButton", {
-		BackgroundColor3 = Color3.fromRGB(24,24,24),
+		BackgroundColor3 = Color3.fromRGB(18,18,18),
 		Text = name,
 		Font = Enum.Font.Gotham,
 		TextSize = 13,
@@ -628,16 +660,15 @@ function Window:AddTab(name: string)
 
 	btn.MouseEnter:Connect(function()
 		if self._activeTab ~= name then
-			tween(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(30,30,30)})
+			tween(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(26,26,26)})
 		end
 	end)
 	btn.MouseLeave:Connect(function()
 		if self._activeTab ~= name then
-			tween(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(24,24,24)})
+			tween(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(18,18,18)})
 		end
 	end)
 
-	-- content page
 	local content = new("ScrollingFrame", {
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -661,21 +692,39 @@ function Window:AddTab(name: string)
 		_sections = {},
 		_theme = self._theme,
 		_window = self,
-		_searchEnabled = true,
 	}, Tab)
 
 	self._tabs[name] = tab
 
 	btn.MouseButton1Click:Connect(function()
-		self:_switchTab(name)
+		if self._activeTab ~= name then
+			self:_switchTab(name)
+		end
 	end)
 
 	if not self._activeTab then
 		self._activeTab = name
+		self._tabTitle.Text = name
 		tab:_setVisible(true)
 	end
 
 	return tab
+end
+
+function Window:SetAccent(color: Color3)
+	self._theme.Accent = color
+	-- walk and recolor accent-dependent strokes/fills
+	for _, inst in ipairs(self._root:GetDescendants()) do
+		if inst:IsA("UIStroke") and inst.Name == "AccentStroke" then
+			inst.Color = color
+		end
+		if inst:IsA("Frame") and inst.Name == "AccentFill" then
+			inst.BackgroundColor3 = color
+		end
+		if inst:IsA("TextButton") and inst.Name == "AccentButton" then
+			inst.BackgroundColor3 = color
+		end
+	end
 end
 
 function Window:Notify(opts: {Title: string?, Content: string?, Duration: number?})
@@ -693,7 +742,7 @@ function Window:Notify(opts: {Title: string?, Content: string?, Duration: number
 	round(card, 12)
 	stroke(card, 1, self._theme.Stroke, 0.2)
 
-	local t = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = title,
 		Font = Enum.Font.GothamBold,
@@ -705,7 +754,7 @@ function Window:Notify(opts: {Title: string?, Content: string?, Duration: number
 		Parent = card,
 	})
 
-	local c = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = content,
 		Font = Enum.Font.Gotham,
@@ -735,15 +784,65 @@ function Window:Notify(opts: {Title: string?, Content: string?, Duration: number
 	end)
 end
 
-function BananaUI:CreateWindow(cfg: {[string]: any})
+-- ===== draggable helper =====
+local function makeDraggable(frame: GuiObject, dragHandle: GuiObject?)
+	local handle = dragHandle or frame
+	local dragging = false
+	local startPos: UDim2? = nil
+	local startInput: Vector2? = nil
+
+	handle.InputBegan:Connect(function(input)
+		if isPointerDown(input) then
+			dragging = true
+			startPos = frame.Position
+			startInput = input.Position
+		end
+	end)
+
+	handle.InputEnded:Connect(function(input)
+		if isPointerDown(input) then
+			dragging = false
+		end
+	end)
+
+	UIS.InputChanged:Connect(function(input)
+		if not dragging then return end
+		if input.UserInputType == Enum.UserInputType.MouseMovement
+			or input.UserInputType == Enum.UserInputType.Touch then
+			if startPos and startInput then
+				local delta = input.Position - startInput
+				frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+			end
+		end
+	end)
+end
+
+-- ===== CreateWindow =====
+export type WindowConfig = {
+	Title: string?,
+	SubTitle: string?,
+	Accent: Color3?,
+	Theme: string?,
+	Size: UDim2?,
+	SidebarWidth: number?,
+	UiScale: number?,
+	ToggleKey: Enum.KeyCode?,
+	RainbowBorder: boolean?,
+	RainbowThickness: number?,
+	ToggleButtonImage: string?, -- rbxassetid://...
+}
+
+function BananaUI:CreateWindow(cfg: WindowConfig)
 	cfg = cfg or {}
 	local playerGui = Players.LocalPlayer:WaitForChild("PlayerGui")
 
-	local theme = Theme.BananaDark(cfg.Accent)
-	local size: UDim2 = cfg.Size or UDim2.fromOffset(620, 340)
-	local sidebarW = cfg.SidebarWidth or 190
+	local theme = bananaTheme(cfg.Accent)
+	local size: UDim2 = cfg.Size or UDim2.fromOffset(650, 360)
+	local sidebarW = cfg.SidebarWidth or 200
 	local uiScale = cfg.UiScale or 1
-	local toggleKey = cfg.ToggleKey or cfg.MinimizeKey
+	local toggleKey = cfg.ToggleKey
+	local rainbow = cfg.RainbowBorder == true
+	local rainbowThickness = cfg.RainbowThickness or 2
 
 	local gui = new("ScreenGui", {
 		Name = "BananaUI",
@@ -752,39 +851,38 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 		Parent = playerGui,
 	})
 
+	-- overlay layer for dropdowns/modals
+	local overlay = new("TextButton", {
+		BackgroundTransparency = 1,
+		Text = "",
+		Size = UDim2.new(1, 0, 1, 0),
+		Parent = gui,
+		AutoButtonColor = false,
+		ZIndex = 20,
+	})
+	overlay.Active = true
+
+	-- root window
 	local root = new("Frame", {
 		BackgroundColor3 = theme.Panel,
 		Size = size,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.new(0.5, 0, 0.5, 0),
 		Parent = gui,
+		ZIndex = 10,
 	})
 	round(root, 14)
 	stroke(root, 1, theme.Stroke, 0.25)
 
-	local scale = new("UIScale", {Scale = uiScale, Parent = root})
+	new("UIScale", {Scale = uiScale, Parent = root})
 
-	-- overlay to close dropdowns
-	local overlay = new("TextButton", {
-		BackgroundTransparency = 1,
-		Text = "",
-		Size = UDim2.new(1, 0, 1, 0),
-		Parent = gui,
-		Visible = true,
-		AutoButtonColor = false,
-		ZIndex = 1,
-	})
-	overlay.Active = true
+	-- rainbow border on window (optional)
+	local rainbowHandle = nil
+	if rainbow then
+		rainbowHandle = attachRainbowBorder(root, rainbowThickness)
+	end
 
-	local rootZ = new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1,0,1,0),
-		Parent = gui,
-		ZIndex = 2,
-	})
-	root.Parent = rootZ
-
-	-- top header (like screenshot title bar)
+	-- header bar: centered title (like screenshot)
 	local header = new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 0, 30),
@@ -792,7 +890,7 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 	})
 	pad(header, 10, 8, 10, 0)
 
-	local title = new("TextLabel", {
+	local centerTitle = new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = (cfg.Title or "Banana Cat Hub") .. " - " .. (cfg.SubTitle or "Game"),
 		Font = Enum.Font.GothamBold,
@@ -804,10 +902,10 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 		Parent = header,
 	})
 
-	-- right header icons (fake icons, simple text glyph)
+	-- right header icons
 	local iconSearch = new("TextButton", {
 		BackgroundTransparency = 1,
-		Text = "🔎",
+		Text = "ðŸ”Ž",
 		Font = Enum.Font.Gotham,
 		TextSize = 14,
 		TextColor3 = theme.SubText,
@@ -819,7 +917,7 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 
 	local iconEye = new("TextButton", {
 		BackgroundTransparency = 1,
-		Text = "👁",
+		Text = "ðŸ‘",
 		Font = Enum.Font.Gotham,
 		TextSize = 14,
 		TextColor3 = theme.SubText,
@@ -829,7 +927,7 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 		Parent = header,
 	})
 
-	-- body split
+	-- body
 	local body = new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 1, -30),
@@ -847,18 +945,18 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 	stroke(sidebar, 1, theme.Stroke, 0.2)
 	pad(sidebar, 10, 10, 10, 10)
 
-	-- avatar circle
+	-- avatar circle (no extra text required)
 	local avatar = new("Frame", {
-		BackgroundColor3 = Color3.fromRGB(22,22,22),
+		BackgroundColor3 = Color3.fromRGB(18,18,18),
 		Size = UDim2.fromOffset(44, 44),
 		Parent = sidebar,
 	})
 	round(avatar, 22)
 	stroke(avatar, 1, theme.Stroke, 0.35)
 
-	local avatarText = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
-		Text = "🐱",
+		Text = "ðŸ±",
 		Font = Enum.Font.GothamBold,
 		TextSize = 18,
 		TextColor3 = theme.Accent,
@@ -866,23 +964,7 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 		Parent = avatar,
 	})
 
-	-- search in sidebar
-	local sideSearch = new("TextBox", {
-		BackgroundColor3 = Color3.fromRGB(20,20,20),
-		Text = "",
-		PlaceholderText = "Search section or Func",
-		Font = Enum.Font.Gotham,
-		TextSize = 12,
-		TextColor3 = theme.Text,
-		PlaceholderColor3 = theme.SubText,
-		ClearTextOnFocus = false,
-		Size = UDim2.new(1, -54, 0, 28),
-		Position = UDim2.new(0, 54, 0, 8),
-		Parent = sidebar,
-	})
-	round(sideSearch, 8)
-	stroke(sideSearch, 1, theme.Stroke, 0.35)
-
+	-- NOTE: remove sidebar search text as requested (only icon search in header)
 	-- tab list
 	local tabList = new("Frame", {
 		BackgroundTransparency = 1,
@@ -890,9 +972,9 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 		Position = UDim2.new(0, 0, 0, 54),
 		Parent = sidebar,
 	})
-	local tabLay = listLayout(tabList, 6)
+	listLayout(tabList, 6)
 
-	-- main panel right
+	-- main panel
 	local main = new("Frame", {
 		BackgroundColor3 = theme.Panel2,
 		Size = UDim2.new(1, -(sidebarW + 10), 1, 0),
@@ -902,7 +984,6 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 	round(main, 12)
 	stroke(main, 1, theme.Stroke, 0.2)
 
-	-- main header line (small)
 	local mainTop = new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1,0,0,34),
@@ -917,29 +998,28 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 		TextSize = 13,
 		TextColor3 = theme.Text,
 		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -80, 1, 0),
+		Size = UDim2.new(1, -90, 1, 0),
 		Parent = mainTop,
 	})
 
+	-- main search box toggled by icon only; no placeholder text
 	local mainSearch = new("TextBox", {
-		BackgroundColor3 = Color3.fromRGB(20,20,20),
+		BackgroundColor3 = Color3.fromRGB(18,18,18),
 		Text = "",
-		PlaceholderText = "Search...",
+		PlaceholderText = "",
 		Font = Enum.Font.Gotham,
 		TextSize = 12,
 		TextColor3 = theme.Text,
-		PlaceholderColor3 = theme.SubText,
 		ClearTextOnFocus = false,
-		Size = UDim2.new(0, 150, 0, 26),
+		Size = UDim2.new(0, 160, 0, 26),
 		AnchorPoint = Vector2.new(1, 0.5),
 		Position = UDim2.new(1, -10, 0.5, 0),
 		Parent = mainTop,
-		Visible = false, -- toggled by iconSearch
+		Visible = false,
 	})
 	round(mainSearch, 8)
 	stroke(mainSearch, 1, theme.Stroke, 0.35)
 
-	-- content host
 	local contentHost = new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1, 0, 1, -34),
@@ -947,13 +1027,87 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 		Parent = main,
 	})
 
-	-- notification host
+	-- notifications
 	local notifyHost = new("Frame", {
 		BackgroundTransparency = 1,
 		Size = UDim2.new(1,0,1,0),
 		Parent = gui,
 		ZIndex = 50,
 	})
+
+	-- floating toggle button (draggable) like screenshot
+	local toggleBtn = new("ImageButton", {
+		Name = "ToggleButton",
+		BackgroundColor3 = theme.Panel2,
+		Size = UDim2.fromOffset(44, 44),
+		AnchorPoint = Vector2.new(0, 0.5),
+		Position = UDim2.new(0, 20, 0.5, 0),
+		Parent = gui,
+		ZIndex = 60,
+		AutoButtonColor = false,
+	})
+	round(toggleBtn, 22)
+	stroke(toggleBtn, 1, theme.Stroke, 0.2)
+
+	-- if no image supplied, show emoji label
+	local imgId = cfg.ToggleButtonImage
+	if imgId and imgId ~= "" then
+		toggleBtn.Image = imgId
+		toggleBtn.ImageTransparency = 0
+	else
+		toggleBtn.Image = ""
+		local l = new("TextLabel", {
+			BackgroundTransparency = 1,
+			Text = "ðŸŒ",
+			Font = Enum.Font.GothamBold,
+			TextSize = 18,
+			TextColor3 = theme.Accent,
+			Size = UDim2.new(1,0,1,0),
+			Parent = toggleBtn,
+			ZIndex = 61,
+		})
+	end
+
+	makeDraggable(toggleBtn)
+
+	-- make window draggable by header
+	makeDraggable(root, header)
+
+	-- search wiring
+	mainSearch:GetPropertyChangedSignal("Text"):Connect(function()
+		(Window :: any)._applyFilter(Window, mainSearch.Text)
+	end)
+
+	iconSearch.MouseButton1Click:Connect(function()
+		mainSearch.Visible = not mainSearch.Visible
+		if mainSearch.Visible then
+			mainSearch:CaptureFocus()
+		else
+			mainSearch.Text = ""
+			(Window :: any)._applyFilter(Window, "")
+		end
+	end)
+
+	local function setVisible(v: boolean)
+		root.Visible = v
+	end
+
+	iconEye.MouseButton1Click:Connect(function()
+		setVisible(not root.Visible)
+	end)
+
+	toggleBtn.MouseButton1Click:Connect(function()
+		setVisible(not root.Visible)
+	end)
+
+	if toggleKey then
+		UIS.InputBegan:Connect(function(input, gpe)
+			if gpe then return end
+			if input.KeyCode == toggleKey then
+				setVisible(not root.Visible)
+			end
+		end)
+	end
 
 	local win = setmetatable({
 		_gui = gui,
@@ -969,73 +1123,14 @@ function BananaUI:CreateWindow(cfg: {[string]: any})
 		_mainSearch = mainSearch,
 		_notifyHost = notifyHost,
 
-		_minimized = false,
-		_toggleKey = toggleKey,
+		_rainbowHandle = rainbowHandle,
+		_toggleBtn = toggleBtn,
+		_centerTitle = centerTitle,
 	}, Window)
 
-	-- search wiring
-	sideSearch:GetPropertyChangedSignal("Text"):Connect(function()
-		win:_applyFilter(sideSearch.Text)
-	end)
-	mainSearch:GetPropertyChangedSignal("Text"):Connect(function()
-		win:_applyFilter(mainSearch.Text)
-	end)
-
-	iconSearch.MouseButton1Click:Connect(function()
-		mainSearch.Visible = not mainSearch.Visible
-		if mainSearch.Visible then
-			mainSearch:CaptureFocus()
-		else
-			mainSearch.Text = ""
-			win:_applyFilter("")
-		end
-	end)
-
-	-- eye icon: hide/show
-	iconEye.MouseButton1Click:Connect(function()
-		win._root.Visible = not win._root.Visible
-	end)
-
-	-- toggle key
-	if toggleKey then
-		UIS.InputBegan:Connect(function(input, gpe)
-			if gpe then return end
-			if input.KeyCode == toggleKey then
-				win._root.Visible = not win._root.Visible
-			end
-		end)
-	end
-
-	-- simple drag window (desktop)
-	local dragging = false
-	local dragStart: Vector2? = nil
-	local startPos: UDim2? = nil
-
-	header.InputBegan:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = true
-			dragStart = input.Position
-			startPos = root.Position
-		end
-	end)
-	header.InputEnded:Connect(function(input)
-		if input.UserInputType == Enum.UserInputType.MouseButton1 then
-			dragging = false
-		end
-	end)
-
-	UIS.InputChanged:Connect(function(input)
-		if not dragging then return end
-		if input.UserInputType == Enum.UserInputType.MouseMovement and dragStart and startPos then
-			local delta = input.Position - dragStart
-			root.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-		end
-	end)
-
-	-- overlay clicks (used by dropdown close)
-	overlay.MouseButton1Click:Connect(function()
-		-- dropdowns use this button to close themselves (they attach inside overlay)
-	end)
+	-- bind methods for inner closures
+	win._applyFilter = Window._applyFilter
+	win._switchTab = Window._switchTab
 
 	return win
 end
