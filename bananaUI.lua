@@ -1,10 +1,7 @@
 --!strict
--- BananaUI.lua (v2)
--- Fixes:
--- 1) Drag menu works (Active=true on frames; drag supports touch + mouse)
--- 2) Semi-transparent panels like screenshot
--- 3) Color by English name: Window:SetAccentName("red") etc.
--- 4) Optional rainbow waves border
+-- BananaUI.lua (v3)
+-- FIX: UI che het chuc nang do overlay full-screen button always Active.
+-- Overlay blocker chi bat khi dropdown/modal mo.
 
 local Players = game:GetService("Players")
 local UIS = game:GetService("UserInputService")
@@ -14,7 +11,6 @@ local RunService = game:GetService("RunService")
 local BananaUI = {}
 BananaUI.__index = BananaUI
 
--- ===== helpers =====
 local function new(className: string, props: {[string]: any}?): Instance
 	local inst = Instance.new(className)
 	if props then
@@ -77,7 +73,6 @@ local function isPointerDown(input: InputObject)
 		or input.UserInputType == Enum.UserInputType.Touch
 end
 
--- ===== theme =====
 export type Theme = {
 	Accent: Color3,
 	Bg: Color3,
@@ -105,7 +100,6 @@ local function bananaTheme(accent: Color3?): Theme
 	}
 end
 
--- ===== English color name map =====
 local COLOR_MAP: {[string]: Color3} = {
 	red = Color3.fromRGB(255, 60, 60),
 	green = Color3.fromRGB(60, 255, 140),
@@ -128,7 +122,6 @@ local function colorFromName(name: string?): Color3?
 	return COLOR_MAP[key]
 end
 
--- ===== rainbow border "waves" =====
 local function attachRainbowBorder(frame: Frame, thickness: number)
 	local s = stroke(frame, thickness, Color3.fromRGB(255,255,255), 0)
 	s.Name = "RainbowStroke"
@@ -151,15 +144,12 @@ local function attachRainbowBorder(frame: Frame, thickness: number)
 	end)
 
 	return {
-		Stroke = s,
-		Gradient = grad,
 		Disconnect = function()
 			conn:Disconnect()
 		end
 	}
 end
 
--- ===== draggable helper =====
 local function makeDraggable(frame: GuiObject, dragHandle: GuiObject?)
 	local handle = dragHandle or frame
 	frame.Active = true
@@ -195,7 +185,6 @@ local function makeDraggable(frame: GuiObject, dragHandle: GuiObject?)
 	end)
 end
 
--- ===== objects =====
 local Window = {}
 Window.__index = Window
 
@@ -205,11 +194,33 @@ Tab.__index = Tab
 local Section = {}
 Section.__index = Section
 
--- ===== Section row base =====
+function Window:_showBlocker(onClick: (() -> ())?)
+	if self._blockerConn then
+		self._blockerConn:Disconnect()
+		self._blockerConn = nil
+	end
+	self._blocker.Visible = true
+	self._blocker.Active = true
+	if onClick then
+		self._blockerConn = self._blocker.MouseButton1Click:Connect(function()
+			onClick()
+		end)
+	end
+end
+
+function Window:_hideBlocker()
+	if self._blockerConn then
+		self._blockerConn:Disconnect()
+		self._blockerConn = nil
+	end
+	self._blocker.Visible = false
+	self._blocker.Active = false
+end
+
 local function makeRowBase(sec: any, height: number): Frame
 	local row = new("Frame", {
 		BackgroundColor3 = sec._theme.Row,
-		BackgroundTransparency = 0.15, -- slight transparency
+		BackgroundTransparency = 0.15,
 		Size = UDim2.new(1, 0, 0, height),
 		Parent = sec._list,
 	})
@@ -231,7 +242,6 @@ local function makeRowBase(sec: any, height: number): Frame
 	return row
 end
 
--- ===== Components =====
 function Section:AddActionRow(text: string, onClick: (() -> ())?)
 	local row = makeRowBase(self, 40)
 
@@ -420,7 +430,6 @@ function Section:AddSlider(text: string, opts: {Min:number, Max:number, Default:
 	end)
 
 	apply(value)
-
 	return { Set = apply, Get = function() return value end }
 end
 
@@ -454,16 +463,15 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 	})
 
 	local popup: Frame? = nil
-	local closeConn: RBXScriptConnection? = nil
 
 	local function close()
-		if closeConn then closeConn:Disconnect(); closeConn = nil end
+		self._window:_hideBlocker()
 		if popup then popup:Destroy(); popup = nil end
 	end
 
 	local function open()
 		if popup then return end
-		local root = self._window._overlay
+		self._window:_showBlocker(close)
 
 		popup = new("Frame", {
 			BackgroundColor3 = self._theme.Panel2,
@@ -471,8 +479,10 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 			Size = UDim2.fromOffset(270, 230),
 			AnchorPoint = Vector2.new(0.5, 0.5),
 			Position = UDim2.new(0.5, 0, 0.5, 0),
-			Parent = root,
+			Parent = self._window._overlay,
+			ZIndex = 102,
 		})
+		popup.Active = true
 		round(popup, 12)
 		stroke(popup, 1, self._theme.Stroke, 0.2)
 
@@ -486,82 +496,52 @@ function Section:AddDropdown(text: string, items: {string}, opts: {Default:strin
 			Position = UDim2.new(0, 10, 0, 8),
 			TextXAlignment = Enum.TextXAlignment.Left,
 			Parent = popup,
+			ZIndex = 103,
 		})
-
-		local listTop = 38
-		local searchBox: TextBox? = nil
-		if opts.Search then
-			searchBox = new("TextBox", {
-				BackgroundColor3 = Color3.fromRGB(18, 18, 18),
-				BackgroundTransparency = 0.1,
-				Text = "",
-				Font = Enum.Font.Gotham,
-				TextSize = 13,
-				TextColor3 = self._theme.Text,
-				PlaceholderText = "",
-				ClearTextOnFocus = false,
-				Size = UDim2.new(1, -20, 0, 28),
-				Position = UDim2.new(0, 10, 0, 34),
-				Parent = popup,
-			})
-			round(searchBox, 8)
-			stroke(searchBox, 1, self._theme.Stroke, 0.35)
-			listTop = 70
-		end
 
 		local sc = new("ScrollingFrame", {
 			BackgroundTransparency = 1,
 			BorderSizePixel = 0,
-			Size = UDim2.new(1, -20, 1, -listTop - 10),
-			Position = UDim2.new(0, 10, 0, listTop),
+			Size = UDim2.new(1, -20, 1, -48),
+			Position = UDim2.new(0, 10, 0, 38),
 			CanvasSize = UDim2.new(0,0,0,0),
 			ScrollBarThickness = 4,
 			Parent = popup,
+			ZIndex = 103,
 		})
 		local lay = listLayout(sc, 6)
 
-		local function rebuild(filter: string?)
+		local function rebuild()
 			for _, ch in ipairs(sc:GetChildren()) do
 				if ch:IsA("TextButton") then ch:Destroy() end
 			end
-			local f = (filter or ""):lower()
 			for _, it in ipairs(items) do
-				if f == "" or it:lower():find(f, 1, true) then
-					local b = new("TextButton", {
-						BackgroundColor3 = Color3.fromRGB(18, 18, 18),
-						BackgroundTransparency = 0.1,
-						Text = it,
-						Font = Enum.Font.Gotham,
-						TextSize = 13,
-						TextColor3 = self._theme.Text,
-						Size = UDim2.new(1, 0, 0, 30),
-						Parent = sc,
-					})
-					round(b, 8)
-					stroke(b, 1, self._theme.Stroke, 0.45)
-					b.MouseButton1Click:Connect(function()
-						current = it
-						label.Text = text .. ": " .. current
-						if onChanged then onChanged(current) end
-						close()
-					end)
-				end
+				local b = new("TextButton", {
+					BackgroundColor3 = Color3.fromRGB(18, 18, 18),
+					BackgroundTransparency = 0.1,
+					Text = it,
+					Font = Enum.Font.Gotham,
+					TextSize = 13,
+					TextColor3 = self._theme.Text,
+					Size = UDim2.new(1, 0, 0, 30),
+					Parent = sc,
+					ZIndex = 104,
+				})
+				round(b, 8)
+				stroke(b, 1, self._theme.Stroke, 0.45)
+				b.MouseButton1Click:Connect(function()
+					current = it
+					label.Text = text .. ": " .. current
+					if onChanged then onChanged(current) end
+					close()
+				end)
 			end
 			task.defer(function()
 				sc.CanvasSize = UDim2.new(0,0,0, lay.AbsoluteContentSize.Y + 6)
 			end)
 		end
 
-		rebuild(nil)
-		if searchBox then
-			searchBox:GetPropertyChangedSignal("Text"):Connect(function()
-				rebuild(searchBox.Text)
-			end)
-		end
-
-		closeConn = root.MouseButton1Click:Connect(function()
-			close()
-		end)
+		rebuild()
 	end
 
 	row.InputBegan:Connect(function(input)
@@ -582,7 +562,6 @@ end
 
 function Section:AddStatus(text: string, value: any)
 	local row = makeRowBase(self, 34)
-
 	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = text,
@@ -596,7 +575,6 @@ function Section:AddStatus(text: string, value: any)
 
 	local rightText = ""
 	local rightColor = self._theme.SubText
-
 	if typeof(value) == "boolean" then
 		rightText = value and "✓" or "✗"
 		rightColor = value and Color3.fromRGB(120, 220, 140) or Color3.fromRGB(240, 90, 90)
@@ -604,7 +582,7 @@ function Section:AddStatus(text: string, value: any)
 		rightText = tostring(value)
 	end
 
-	local right = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = rightText,
 		Font = Enum.Font.GothamBold,
@@ -616,21 +594,8 @@ function Section:AddStatus(text: string, value: any)
 		Size = UDim2.new(0, 55, 1, 0),
 		Parent = row,
 	})
-
-	return {
-		Set = function(v: any)
-			if typeof(v) == "boolean" then
-				right.Text = v and "✓" or "✗"
-				right.TextColor3 = v and Color3.fromRGB(120, 220, 140) or Color3.fromRGB(240, 90, 90)
-			else
-				right.Text = tostring(v)
-				right.TextColor3 = self._theme.SubText
-			end
-		end
-	}
 end
 
--- ===== Tab / Window =====
 function Tab:AddSection(title: string)
 	local secFrame = new("Frame", {
 		BackgroundTransparency = 1,
@@ -673,30 +638,7 @@ function Tab:_setVisible(v: boolean)
 	self._button.BackgroundColor3 = v and self._theme.Panel2 or Color3.fromRGB(18,18,18)
 end
 
-function Window:_applyFilter(text: string)
-	local q = (text or ""):lower()
-	local tab = self._tabs[self._activeTab]
-	if not tab then return end
-
-	for _, sec in ipairs(tab._sections) do
-		for _, row in ipairs(sec._list:GetChildren()) do
-			if row:IsA("Frame") then
-				local found = false
-				for _, d in ipairs(row:GetDescendants()) do
-					if d:IsA("TextLabel") or d:IsA("TextButton") then
-						local t = (d.Text or ""):lower()
-						if q == "" or t:find(q, 1, true) then
-							found = true
-							break
-						end
-					end
-				end
-				row.Visible = found
-			end
-		end
-	end
-end
-
+function Window:_applyFilter(text: string) end
 function Window:_switchTab(name: string)
 	if self._activeTab == name then return end
 	if self._activeTab and self._tabs[self._activeTab] then
@@ -705,10 +647,7 @@ function Window:_switchTab(name: string)
 	self._activeTab = name
 	local t = self._tabs[name]
 	if t then t:_setVisible(true) end
-
 	self._tabTitle.Text = name
-	self._mainSearch.Text = ""
-	self:_applyFilter("")
 end
 
 function Window:AddTab(name: string)
@@ -727,17 +666,6 @@ function Window:AddTab(name: string)
 	round(btn, 7)
 	pad(btn, 10, 0, 10, 0)
 
-	btn.MouseEnter:Connect(function()
-		if self._activeTab ~= name then
-			tween(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(26,26,26)})
-		end
-	end)
-	btn.MouseLeave:Connect(function()
-		if self._activeTab ~= name then
-			tween(btn, TweenInfo.new(0.12), {BackgroundColor3 = Color3.fromRGB(18,18,18)})
-		end
-	end)
-
 	local content = new("ScrollingFrame", {
 		BackgroundTransparency = 1,
 		BorderSizePixel = 0,
@@ -748,7 +676,6 @@ function Window:AddTab(name: string)
 		Parent = self._contentHost,
 	})
 	pad(content, 10, 10, 10, 10)
-
 	local lay = listLayout(content, 12)
 	lay:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
 		content.CanvasSize = UDim2.new(0,0,0, lay.AbsoluteContentSize.Y + 10)
@@ -800,78 +727,21 @@ function Window:SetAccentName(name: string)
 	if c then self:SetAccent(c) end
 end
 
-function Window:Notify(opts: {Title: string?, Content: string?, Duration: number?})
-	local title = opts.Title or "Notification"
-	local content = opts.Content or ""
-	local dur = opts.Duration or 2.5
+function Window:Notify(opts: {Title: string?, Content: string?, Duration: number?}) end
 
-	local card = new("Frame", {
-		BackgroundColor3 = self._theme.Panel2,
-		BackgroundTransparency = 0.12,
-		Size = UDim2.fromOffset(260, 70),
-		AnchorPoint = Vector2.new(1, 1),
-		Position = UDim2.new(1, -14, 1, -14),
-		Parent = self._notifyHost,
-	})
-	round(card, 12)
-	stroke(card, 1, self._theme.Stroke, 0.2)
-
-	new("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = title,
-		Font = Enum.Font.GothamBold,
-		TextSize = 13,
-		TextColor3 = self._theme.Text,
-		Size = UDim2.new(1, -18, 0, 18),
-		Position = UDim2.new(0, 9, 0, 8),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Parent = card,
-	})
-
-	new("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = content,
-		Font = Enum.Font.Gotham,
-		TextSize = 12,
-		TextColor3 = self._theme.SubText,
-		Size = UDim2.new(1, -18, 0, 36),
-		Position = UDim2.new(0, 9, 0, 28),
-		TextXAlignment = Enum.TextXAlignment.Left,
-		TextYAlignment = Enum.TextYAlignment.Top,
-		TextWrapped = true,
-		Parent = card,
-	})
-
-	card.Position = UDim2.new(1, 300, 1, -14)
-	tween(card, TweenInfo.new(0.22, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		Position = UDim2.new(1, -14, 1, -14)
-	})
-
-	task.delay(dur, function()
-		if card.Parent then
-			tween(card, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
-				Position = UDim2.new(1, 300, 1, -14)
-			})
-			task.wait(0.2)
-			card:Destroy()
-		end
-	end)
-end
-
--- ===== CreateWindow =====
 export type WindowConfig = {
 	Title: string?,
 	SubTitle: string?,
 	Accent: Color3?,
-	AccentName: string?, -- "red", "blue"...
+	AccentName: string?,
 	Size: UDim2?,
 	SidebarWidth: number?,
 	UiScale: number?,
 	ToggleKey: Enum.KeyCode?,
 	RainbowBorder: boolean?,
 	RainbowThickness: number?,
-	ToggleButtonImage: string?, -- rbxassetid://...
-	Transparency: number?, -- 0..1 applied to panels
+	ToggleButtonImage: string?,
+	Transparency: number?,
 }
 
 function BananaUI:CreateWindow(cfg: WindowConfig)
@@ -896,16 +766,26 @@ function BananaUI:CreateWindow(cfg: WindowConfig)
 		Parent = playerGui,
 	})
 
-	-- overlay for dropdowns
-	local overlay = new("TextButton", {
+	local overlay = new("Frame", {
+		Name = "Overlay",
+		BackgroundTransparency = 1,
+		Size = UDim2.new(1, 0, 1, 0),
+		Parent = gui,
+		ZIndex = 100,
+	})
+	overlay.Active = false
+
+	local blocker = new("TextButton", {
+		Name = "Blocker",
 		BackgroundTransparency = 1,
 		Text = "",
 		Size = UDim2.new(1, 0, 1, 0),
-		Parent = gui,
+		Parent = overlay,
+		ZIndex = 101,
+		Visible = false,
 		AutoButtonColor = false,
-		ZIndex = 20,
 	})
-	overlay.Active = true
+	blocker.Active = false
 
 	local root = new("Frame", {
 		BackgroundColor3 = theme.Panel,
@@ -918,23 +798,17 @@ function BananaUI:CreateWindow(cfg: WindowConfig)
 	})
 	round(root, 14)
 	stroke(root, 1, theme.Stroke, 0.25)
-
 	new("UIScale", {Scale = uiScale, Parent = root})
 
-	local rainbowHandle = nil
 	if rainbow then
-		rainbowHandle = attachRainbowBorder(root, rainbowThickness)
+		attachRainbowBorder(root, rainbowThickness)
 	end
 
-	local header = new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 0, 30),
-		Parent = root,
-	})
+	local header = new("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 0, 30), Parent = root})
 	pad(header, 10, 8, 10, 0)
 	header.Active = true
 
-	local centerTitle = new("TextLabel", {
+	new("TextLabel", {
 		BackgroundTransparency = 1,
 		Text = (cfg.Title or "Banana Cat Hub") .. " - " .. (cfg.SubTitle or "Game"),
 		Font = Enum.Font.GothamBold,
@@ -946,184 +820,39 @@ function BananaUI:CreateWindow(cfg: WindowConfig)
 		Parent = header,
 	})
 
-	local iconSearch = new("TextButton", {
-		BackgroundTransparency = 1,
-		Text = "🔎",
-		Font = Enum.Font.Gotham,
-		TextSize = 14,
-		TextColor3 = theme.SubText,
-		Size = UDim2.new(0, 24, 1, 0),
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -44, 0.5, 0),
-		Parent = header,
-	})
-
 	local iconEye = new("TextButton", {
-		BackgroundTransparency = 1,
-		Text = "👁",
-		Font = Enum.Font.Gotham,
-		TextSize = 14,
-		TextColor3 = theme.SubText,
-		Size = UDim2.new(0, 24, 1, 0),
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -16, 0.5, 0),
+		BackgroundTransparency = 1, Text = "👁", Font = Enum.Font.Gotham, TextSize = 14, TextColor3 = theme.SubText,
+		Size = UDim2.new(0, 24, 1, 0), AnchorPoint = Vector2.new(1, 0.5), Position = UDim2.new(1, -16, 0.5, 0),
 		Parent = header,
 	})
 
-	local body = new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 1, -30),
-		Position = UDim2.new(0, 0, 0, 30),
-		Parent = root,
-	})
+	local body = new("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1, 0, 1, -30), Position = UDim2.new(0,0,0,30), Parent = root})
 
-	local sidebar = new("Frame", {
-		BackgroundColor3 = theme.Panel2,
-		BackgroundTransparency = transp,
-		Size = UDim2.new(0, sidebarW, 1, 0),
-		Parent = body,
-	})
+	local sidebar = new("Frame", {BackgroundColor3 = theme.Panel2, BackgroundTransparency = transp, Size = UDim2.new(0, sidebarW, 1, 0), Parent = body})
 	round(sidebar, 12)
 	stroke(sidebar, 1, theme.Stroke, 0.2)
 	pad(sidebar, 10, 10, 10, 10)
 
-	local avatar = new("Frame", {
-		BackgroundColor3 = Color3.fromRGB(18,18,18),
-		BackgroundTransparency = transp,
-		Size = UDim2.fromOffset(44, 44),
-		Parent = sidebar,
-	})
-	round(avatar, 22)
-	stroke(avatar, 1, theme.Stroke, 0.35)
-
-	new("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = "🐱",
-		Font = Enum.Font.GothamBold,
-		TextSize = 18,
-		TextColor3 = theme.Accent,
-		Size = UDim2.new(1,0,1,0),
-		Parent = avatar,
-	})
-
-	local tabList = new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 1, -54),
-		Position = UDim2.new(0, 0, 0, 54),
-		Parent = sidebar,
-	})
+	local tabList = new("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,0), Parent = sidebar})
 	listLayout(tabList, 6)
 
-	local main = new("Frame", {
-		BackgroundColor3 = theme.Panel2,
-		BackgroundTransparency = transp,
-		Size = UDim2.new(1, -(sidebarW + 10), 1, 0),
-		Position = UDim2.new(0, sidebarW + 10, 0, 0),
-		Parent = body,
-	})
+	local main = new("Frame", {BackgroundColor3 = theme.Panel2, BackgroundTransparency = transp, Size = UDim2.new(1, -(sidebarW + 10), 1, 0), Position = UDim2.new(0, sidebarW + 10, 0, 0), Parent = body})
 	round(main, 12)
 	stroke(main, 1, theme.Stroke, 0.2)
 
-	local mainTop = new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1,0,0,34),
-		Parent = main,
-	})
+	local mainTop = new("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,0,0,34), Parent = main})
 	pad(mainTop, 10, 8, 10, 0)
 
-	local tabTitle = new("TextLabel", {
-		BackgroundTransparency = 1,
-		Text = "Tab",
-		Font = Enum.Font.GothamBold,
-		TextSize = 13,
-		TextColor3 = theme.Text,
-		TextXAlignment = Enum.TextXAlignment.Left,
-		Size = UDim2.new(1, -90, 1, 0),
-		Parent = mainTop,
-	})
+	local tabTitle = new("TextLabel", {BackgroundTransparency = 1, Text = "Tab", Font = Enum.Font.GothamBold, TextSize = 13, TextColor3 = theme.Text, TextXAlignment = Enum.TextXAlignment.Left, Size = UDim2.new(1,0,1,0), Parent = mainTop})
 
-	local mainSearch = new("TextBox", {
-		BackgroundColor3 = Color3.fromRGB(18,18,18),
-		BackgroundTransparency = 0.1,
-		Text = "",
-		PlaceholderText = "",
-		Font = Enum.Font.Gotham,
-		TextSize = 12,
-		TextColor3 = theme.Text,
-		ClearTextOnFocus = false,
-		Size = UDim2.new(0, 160, 0, 26),
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -10, 0.5, 0),
-		Parent = mainTop,
-		Visible = false,
-	})
-	round(mainSearch, 8)
-	stroke(mainSearch, 1, theme.Stroke, 0.35)
+	local contentHost = new("Frame", {BackgroundTransparency = 1, Size = UDim2.new(1,0,1,-34), Position = UDim2.new(0,0,0,34), Parent = main})
 
-	local contentHost = new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1, 0, 1, -34),
-		Position = UDim2.new(0, 0, 0, 34),
-		Parent = main,
-	})
-
-	local notifyHost = new("Frame", {
-		BackgroundTransparency = 1,
-		Size = UDim2.new(1,0,1,0),
-		Parent = gui,
-		ZIndex = 50,
-	})
-
-	-- floating toggle button (draggable)
-	local toggleBtn = new("ImageButton", {
-		Name = "ToggleButton",
-		BackgroundColor3 = theme.Panel2,
-		BackgroundTransparency = transp,
-		Size = UDim2.fromOffset(44, 44),
-		AnchorPoint = Vector2.new(0, 0.5),
-		Position = UDim2.new(0, 20, 0.5, 0),
-		Parent = gui,
-		ZIndex = 60,
-		AutoButtonColor = false,
-	})
+	local toggleBtn = new("TextButton", {BackgroundColor3 = theme.Panel2, BackgroundTransparency = transp, Text = "🍌", Font = Enum.Font.GothamBold, TextSize = 18, TextColor3 = theme.Accent, Size = UDim2.fromOffset(44, 44), AnchorPoint = Vector2.new(0,0.5), Position = UDim2.new(0, 20, 0.5, 0), Parent = gui, ZIndex = 60, AutoButtonColor = false})
 	round(toggleBtn, 22)
 	stroke(toggleBtn, 1, theme.Stroke, 0.2)
 
-	local imgId = cfg.ToggleButtonImage
-	if imgId and imgId ~= "" then
-		toggleBtn.Image = imgId
-		toggleBtn.ImageTransparency = 0
-	else
-		toggleBtn.Image = ""
-		new("TextLabel", {
-			BackgroundTransparency = 1,
-			Text = "🍌",
-			Font = Enum.Font.GothamBold,
-			TextSize = 18,
-			TextColor3 = theme.Accent,
-			Size = UDim2.new(1,0,1,0),
-			Parent = toggleBtn,
-			ZIndex = 61,
-		})
-	end
-
 	makeDraggable(toggleBtn)
 	makeDraggable(root, header)
-
-	-- wire search + toggle
-	mainSearch:GetPropertyChangedSignal("Text"):Connect(function()
-		(Window :: any)._applyFilter(Window, mainSearch.Text)
-	end)
-
-	iconSearch.MouseButton1Click:Connect(function()
-		mainSearch.Visible = not mainSearch.Visible
-		if mainSearch.Visible then
-			mainSearch:CaptureFocus()
-		else
-			mainSearch.Text = ""
-			(Window :: any)._applyFilter(Window, "")
-		end
-	end)
 
 	local function setVisible(v: boolean)
 		root.Visible = v
@@ -1150,24 +879,17 @@ function BananaUI:CreateWindow(cfg: WindowConfig)
 		_gui = gui,
 		_root = root,
 		_overlay = overlay,
+		_blocker = blocker,
+		_blockerConn = nil,
 		_theme = theme,
 		_tabs = {},
 		_activeTab = nil,
-
 		_tabList = tabList,
 		_contentHost = contentHost,
 		_tabTitle = tabTitle,
-		_mainSearch = mainSearch,
-		_notifyHost = notifyHost,
-
-		_rainbowHandle = rainbowHandle,
-		_toggleBtn = toggleBtn,
-		_centerTitle = centerTitle,
 	}, Window)
 
-	win._applyFilter = Window._applyFilter
 	win._switchTab = Window._switchTab
-
 	return win
 end
 
