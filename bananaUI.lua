@@ -20,8 +20,13 @@ local function new(className: string, props: {[string]: any}?): Instance
 	local inst = Instance.new(className)
 	if props then
 		for k, v in pairs(props) do
-			(inst :: any)[k] = v
+			-- Some environments/executors may not support certain properties; ignore invalid assignments.
+			pcall(function() (inst :: any)[k] = v end)
 		end
+	end
+	return inst
+end
+
 	end
 	return inst
 end
