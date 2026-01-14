@@ -243,6 +243,18 @@ export type WindowConfig = {
 
 -- Public: expose Options table like Fluent
 BananaUI.Options = {} :: {[string]: any}
+BananaUI.Options.__name = "BananaUI.Options"
+do
+	local ok, env = pcall(function()
+		local f = (getgenv or getrenv or getfenv)
+		if f then return f() end
+		return nil
+	end)
+	if ok and env then
+		env.Options = BananaUI.Options
+		env.BananaUI = BananaUI
+	end
+end
 
 local function makeRow(theme: Theme, parent: Instance, height: number, transp: number)
 	local row = new("Frame", {
@@ -612,6 +624,12 @@ function Section:AddSlider(idOrCfg: any, maybeCfg: any)
 	cfg.Title = cfg.Title or id
 	cfg.Min = cfg.Min or 0
 	cfg.Max = cfg.Max or 100
+	if cfg.Step == nil and cfg.Rounding ~= nil then
+		local r = tonumber(cfg.Rounding)
+		if r and r >= 0 then
+			cfg.Step = 1/(10^r)
+		end
+	end
 	cfg.Step = cfg.Step or 1
 	cfg.Default = cfg.Default or cfg.Min
 
@@ -1326,6 +1344,7 @@ function BananaUI:CreateWindow(cfg: WindowConfig)
 		Name = "BananaUI_All",
 		ResetOnSpawn = false,
 		IgnoreGuiInset = true,
+		ScreenOrientation = Enum.ScreenOrientation.LandscapeLeft,
 		ZIndexBehavior = Enum.ZIndexBehavior.Sibling,
 		Parent = playerGui,
 	})
