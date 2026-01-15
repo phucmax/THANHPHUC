@@ -1,17 +1,13 @@
---// PHUCMAX | Farm Chest v1 (Fixed & Improved)
+--// PHUCMAX | Farm Chest v1 (Adjusted per user request)
 --// Mobile / Executor friendly
 --// Updated: 2026-01-15 (patched: auto-start, non-tele pickup, persistent toggle, safer movement)
---// Notes: implements auto-team (Marines), aggressive fix-lag (trees/water/particles/colors),
---// flying with noclip, persistent server-hop avoiding duplicates, UI polish (Vietnamese labels),
---// stops everything when forbidden tools are detected (God's Chalice / Blackbeard key heuristics),
---// auto-jump every 1 second when running.
---// Changes in this patch:
---//  - Script now auto-starts on load (buttons kept as backup)
---//  - Main small toggle remains available (so user can always re-open UI)
---//  - Added explicit close button inside main panel
---//  - Removed teleport-style HRP.CFrame moves for pickup: uses BodyVelocity override steering instead
---//  - Fly speed kept at SPEED (default 350)
---//  - Movement/steering uses an OverrideVelocity flag used by the fly render step
+--// Changes in this copy:
+--//  - Disabled automatic team switching (will NOT select Marines)
+--//  - Forbidden-tool detection now warns but DOES NOT stop the script automatically
+--//  - Chest approach uses temporary BodyVelocity/BodyGyro per-approach (auto-move only to chest,
+--//    does NOT enable persistent "fly" mode). Keeps height = FLY_HEIGHT and speed = SPEED.
+--//  - UI / buttons preserved. Script still auto-starts by default but movement to chests is
+--//    now a targeted velocity approach (so it "flies to chest" without enabling full persistent fly).
 
 repeat task.wait() until game:IsLoaded()
 
@@ -30,8 +26,8 @@ local UI_BG_IMAGE = "rbxassetid://89799706653949" -- background image id (main)
 local BTN_BG_IMAGE = "rbxassetid://89799706653949" -- button background id
 local TOGGLE_IMAGE = "rbxassetid://89799706653949" -- toggle circular image id
 local THEME_COLOR = Color3.fromRGB(140, 0, 255) -- main accent
-local SPEED = 350 -- fly forward speed
-local FLY_HEIGHT = 6 -- height above chest when flying to it
+local SPEED = 350 -- fly-forward speed when moving to a chest (user requested)
+local FLY_HEIGHT = 6 -- height above chest when moving to it (maintained)
 local FIXLAG_BRIGHTNESS_FACTOR = 0.3 -- reduce brightness to 30% (70% reduction)
 local SERVER_FETCH_LIMIT = 100 -- how many servers to fetch per request
 local SERVER_HOP_DELAY = 2 -- wait before trying to hop
@@ -40,10 +36,10 @@ local FORBIDDEN_TOOL_KEYWORDS = { "chalice", "god", "godschalice", "blackbeard",
 -- ================= GLOBAL STATE =================
 getgenv().PHUCMAX = getgenv().PHUCMAX or {
     Running = false,
-    Flying = false,
+    Flying = false, -- retained flag but we do NOT enable persistent fly by default
     StartTime = 0,
     VisitedServers = {},
-    OverrideVelocity = nil, -- when set, fly renderstep will apply this velocity instead of default forward
+    OverrideVelocity = nil,
 }
 
 -- ================= CHARACTER =================
@@ -59,7 +55,7 @@ Player.CharacterAdded:Connect(function()
     pcall(UpdateChar)
 end)
 
--- reusable noclip helper (used by fly and movement routines)
+-- reusable noclip helper (used by movement routines)
 local function noclipCharacter()
     if Character and Character.Parent then
         for _,p in pairs(Character:GetDescendants()) do
@@ -77,7 +73,6 @@ local function MakeScreenGui()
     ScreenGui.ResetOnSpawn = false
     ScreenGui.Parent = game.CoreGui
 
-    -- toggle circular button (left center) draggable (kept visible as a backup toggle)
     local Toggle = Instance.new("ImageButton", ScreenGui)
     Toggle.Name = "PHUCMAX_TOGGLE"
     Toggle.Size = UDim2.fromOffset(60,60)
@@ -88,7 +83,6 @@ local function MakeScreenGui()
     Toggle.Draggable = true
     Toggle.ZIndex = 10
 
-    -- main panel
     local Main = Instance.new("Frame", ScreenGui)
     Main.Name = "PHUCMAX_MAIN"
     Main.Size = UDim2.fromOffset(420,260)
@@ -148,7 +142,6 @@ local function MakeScreenGui()
     Info.TextColor3 = Color3.fromRGB(220,220,220)
     Info.Text = "Money : 0\nTime : 00:00:00\nState : Idle"
 
-    -- explicit close button inside main (so toggle can remain visible)
     local CloseBtn = Instance.new("TextButton", Main)
     CloseBtn.Name = "CloseBtn"
     CloseBtn.Size = UDim2.fromOffset(28,28)
@@ -161,7 +154,6 @@ local function MakeScreenGui()
     CloseBtn.BackgroundColor3 = Color3.fromRGB(40,40,40)
     Instance.new("UICorner", CloseBtn).CornerRadius = UDim.new(0,10)
 
-    -- bottom buttons container
     local BtnContainer = Instance.new("Frame", Main)
     BtnContainer.BackgroundTransparency = 1
     BtnContainer.Size = UDim2.new(1, -40, 0, 60)
@@ -191,24 +183,15 @@ local function MakeScreenGui()
     local StopBtn, StopLbl   = Button("DỪNG",    UDim2.new(0.38,0,0,0)) -- Pause
     local ResetBtn, ResetLbl = Button("RESET",   UDim2.new(0.69,0,0,0)) -- Reset
 
-    -- Toggle behavior: show/hide main but keep toggle visible as a backup toggle
     Toggle.MouseButton1Click:Connect(function()
         Main.Visible = not Main.Visible
-        -- keep Toggle.Visible true always (user wanted toggle as a persistent backup)
         Toggle.Visible = true
     end)
 
-    -- Close button inside main
     CloseBtn.MouseButton1Click:Connect(function()
         Main.Visible = false
     end)
 
-    -- Don't hide the small toggle when main visibility changes (persistent backup)
-    -- Main:GetPropertyChangedSignal("Visible"):Connect(function()
-    --     -- intentionally left blank to keep Toggle visible
-    -- end)
-
-    -- button actions wired later via returned table
     return {
         Gui = ScreenGui,
         Toggle = Toggle,
@@ -238,60 +221,39 @@ task.spawn(function()
         local hours = math.floor(t / 3600) % 24
         local mins  = math.floor(t / 60) % 60
         local secs  = t % 60
-        local state = getgenv().PHUCMAX.Running and (getgenv().PHUCMAX.Flying and "Farming (Flying)" or "Farming") or "Đang dừng"
+        local state = getgenv().PHUCMAX.Running and "Farming (auto-move to chests)" or "Đang dừng"
         UI.Info.Text = "Money : "..tostring(beli).."\nThời gian : "..string.format("%02d:%02d:%02d", hours, mins, secs).."\nTrạng thái : "..state
     end
 end)
 
 -- ================= AUTO TEAM =================
+-- NOTE: per user request, we will NOT auto-select team (Marines). AutoTeam logic is left but not invoked.
 local function AutoTeam()
-    pcall(function()
-        -- keep trying to set team to Marines while main minimal UI present (spawned state)
-        if Player.PlayerGui:FindFirstChild("Main (minimal)") then
-            repeat
-                task.wait(1)
-                pcall(function()
-                    if game.ReplicatedStorage and game.ReplicatedStorage:FindFirstChild("Remotes") and game.ReplicatedStorage.Remotes:FindFirstChild("CommF_") then
-                        game.ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam","Marines")
-                    else
-                        -- fallback: try a generic remote if known
-                        pcall(function()
-                            game:GetService("ReplicatedStorage").Remotes.CommF_:InvokeServer("SetTeam","Marines")
-                        end)
-                    end
-                end)
-            until not Player.PlayerGui:FindFirstChild("Main (minimal)") or not getgenv().PHUCMAX.Running
-        end
-    end)
+    -- no-op (disabled): kept for reference but intentionally not used
+    return
 end
 
 -- ================= FIX LAG =================
 local function FixLag()
     pcall(function()
-        -- Lighting adjustments
         Lighting.GlobalShadows = false
-        Lighting.Brightness = math.max(0.1, (Lighting.Brightness or 1) * FIXLAG_BRIGHTNESS_FACTOR) -- reduce ~70%
+        Lighting.Brightness = math.max(0.1, (Lighting.Brightness or 1) * FIXLAG_BRIGHTNESS_FACTOR)
         Lighting.FogEnd = 9e9
-        -- Terrain / water
         if Workspace:FindFirstChildOfClass("Terrain") then
             Workspace.Terrain.WaterWaveSize = 0
             Workspace.Terrain.WaterWaveSpeed = 0
             Workspace.Terrain.WaterTransparency = 1
         end
-        -- iterate workspace and aggressively lower detail
         for _,v in pairs(Workspace:GetDescendants()) do
             if v:IsA("BasePart") then
-                -- remove colorful foliage and trees by heuristic on name
                 local nameLower = tostring(v.Name):lower()
                 if nameLower:find("tree") or nameLower:find("leaf") or nameLower:find("foliage") or nameLower:find("bush") then
-                    -- hide rather than destroy (safer)
                     v.Transparency = 1
                     v.CanCollide = false
                 else
                     v.Material = Enum.Material.SmoothPlastic
                     v.Color = Color3.fromRGB(120,120,120)
                     v.Reflectance = 0
-                    -- reduce texture and detail on meshparts
                     if v:IsA("MeshPart") or v:IsA("UnionOperation") then
                         pcall(function() v.MeshId = "" end)
                     end
@@ -299,10 +261,8 @@ local function FixLag()
             elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
                 v.Enabled = false
             elseif v:IsA("Decal") or v:IsA("Texture") then
-                -- hide decals to save fps
                 v.Transparency = 1
             elseif v:IsA("Model") then
-                -- simple heuristic to remove tree models
                 local nm = tostring(v.Name):lower()
                 if nm:find("tree") or nm:find("leaf") or nm:find("bush") or nm:find("foliage") then
                     for _,p in pairs(v:GetDescendants()) do
@@ -317,74 +277,6 @@ local function FixLag()
             end
         end
     end)
-end
-
--- ================= FLY (with noclip & maintain height) =================
-local BodyGyro, BodyVel
-local function StartFly()
-    if getgenv().PHUCMAX.Flying then return end
-    if not HRP or not HRP.Parent then
-        pcall(UpdateChar)
-        if not HRP or not HRP.Parent then return end
-    end
-    getgenv().PHUCMAX.Flying = true
-
-    -- cleanup previous
-    pcall(function() RunService:UnbindFromRenderStep("PHUCMAX_FLY") end)
-    if BodyGyro then BodyGyro:Destroy() BodyGyro = nil end
-    if BodyVel then BodyVel:Destroy() BodyVel = nil end
-
-    BodyGyro = Instance.new("BodyGyro")
-    BodyGyro.Parent = HRP
-    BodyGyro.P = 9e4
-    BodyGyro.MaxTorque = Vector3.new(9e9,9e9,9e9)
-    BodyGyro.D = 1000
-
-    BodyVel = Instance.new("BodyVelocity")
-    BodyVel.Parent = HRP
-    BodyVel.MaxForce = Vector3.new(9e9,9e9,9e9)
-
-    RunService:BindToRenderStep("PHUCMAX_FLY", Enum.RenderPriority.Character.Value, function()
-        if not getgenv().PHUCMAX.Running then return end
-        pcall(function()
-            local cam = workspace.CurrentCamera
-            if not cam or not HRP then return end
-            -- if override velocity present, use it (movement routines set this)
-            local override = getgenv().PHUCMAX.OverrideVelocity
-            if override and BodyVel and BodyVel.Parent then
-                BodyVel.Velocity = override
-            else
-                -- orient to camera
-                if BodyGyro and BodyGyro.Parent then
-                    BodyGyro.CFrame = CFrame.new(HRP.Position, HRP.Position + cam.CFrame.LookVector)
-                end
-                -- set forward velocity while maintaining height (Y ~ 0 to keep stable)
-                if BodyVel and BodyVel.Parent then
-                    local forward = cam.CFrame.LookVector * SPEED
-                    -- keep Y close to zero so BodyVelocity counters gravity and maintains altitude
-                    BodyVel.Velocity = Vector3.new(forward.X, 0, forward.Z)
-                end
-            end
-            noclipCharacter()
-            -- keep Humanoid state in platform stand to reduce fall behavior (if available)
-            if Humanoid and Humanoid.Parent then
-                pcall(function() Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, false) end)
-            end
-        end)
-    end)
-end
-
-local function StopFly()
-    getgenv().PHUCMAX.Flying = false
-    pcall(function() RunService:UnbindFromRenderStep("PHUCMAX_FLY") end)
-    if BodyGyro then BodyGyro:Destroy() BodyGyro = nil end
-    if BodyVel then BodyVel:Destroy() BodyVel = nil end
-    -- restore humanoid states
-    if Humanoid and Humanoid.Parent then
-        pcall(function() Humanoid:SetStateEnabled(Enum.HumanoidStateType.FallingDown, true) end)
-    end
-    -- clear override velocity
-    getgenv().PHUCMAX.OverrideVelocity = nil
 end
 
 -- ================= CHEST DETECTION =================
@@ -418,15 +310,22 @@ local function HasForbiddenTool()
         return false
     end
 
-    -- check backpack and character
     local found, name = checkContainer(Player:FindFirstChild("Backpack"))
     if found then return true, name end
     found, name = checkContainer(Character)
     if found then return true, name end
-
-    -- also check StarterGear or StarterPack, just in case
-    local st = game:GetService("StarterGui") -- not a direct container for tools but leave as fallback
     return false
+end
+
+local function WarnForbiddenTool(foundName)
+    -- Do not stop the script automatically. Just warn the user and update UI.
+    UI.Info.Text = "Cảnh báo : Đã phát hiện ["..tostring(foundName).."]. Script sẽ tiếp tục."
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
+            Text = "[PHUCMAX] Cảnh báo: Đã tìm thấy "..tostring(foundName)..". Script sẽ tiếp tục.";
+            Color = Color3.fromRGB(255,180,50);
+        })
+    end)
 end
 
 -- ================= SERVER HOP =================
@@ -448,124 +347,111 @@ local function Hop()
     end
 end
 
--- ================= MAIN LOGIC =================
--- UI button bindings (buttons remain as backup controls)
-UI.StartBtn.MouseButton1Click:Connect(function()
-    if not getgenv().PHUCMAX.Running then
-        getgenv().PHUCMAX.Running = true
-        getgenv().PHUCMAX.StartTime = tick()
-        pcall(StartFly)
-    end
-end)
-
-UI.StopBtn.MouseButton1Click:Connect(function()
-    getgenv().PHUCMAX.Running = false
-    StopFly()
-end)
-
-UI.ResetBtn.MouseButton1Click:Connect(function()
-    getgenv().PHUCMAX.Running = false
-    getgenv().PHUCMAX.StartTime = tick()
-    getgenv().PHUCMAX.VisitedServers = {}
-    UI.Info.Text = "Money : 0\nThời gian : 00:00:00\nTrạng thái : Reset"
-end)
-
--- Safety: stop all if forbidden tool detected
-local function StopAllDueToTool(foundName)
-    getgenv().PHUCMAX.Running = false
-    StopFly()
-    UI.Info.Text = "Đã phát hiện ["..tostring(foundName).."]. Dừng tất cả chức năng."
-    -- optionally notify via chat
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
-            Text = "[PHUCMAX] Đã tìm thấy "..tostring(foundName)..". Script đã dừng.";
-            Color = Color3.fromRGB(255,100,100);
-        })
-    end)
-end
-
--- movement helper to move to a chest safely (uses BodyVelocity override rather than teleport)
+-- ================= MOVEMENT: targeted approach (no persistent fly) =================
+-- This function moves the character to a target position using a temporary BodyVelocity/BodyGyro
+-- and always keeps the desired height (FLY_HEIGHT). It does not enable a persistent "fly" mode.
 local function MoveToChestPart(chestPart)
-    if not chestPart or not HRP then return end
-    if not BodyVel then
-        -- ensure flying is started so BodyVel exists
-        pcall(StartFly)
-        task.wait(0.2)
-        if not BodyVel then return end
+    if not chestPart or not HRP or not HRP.Parent then return end
+    pcall(UpdateChar)
+    if not HRP or not HRP.Parent then return end
+
+    local tempBG = Instance.new("BodyGyro")
+    tempBG.Parent = HRP
+    tempBG.P = 9e4
+    tempBG.MaxTorque = Vector3.new(9e9,9e9,9e9)
+    tempBG.D = 1000
+
+    local tempBV = Instance.new("BodyVelocity")
+    tempBV.Parent = HRP
+    tempBV.MaxForce = Vector3.new(9e9,9e9,9e9)
+    tempBV.Velocity = Vector3.new(0,0,0)
+
+    local target = chestPart.Position + Vector3.new(0, FLY_HEIGHT, 0)
+    local timeout = 2.5
+    local start = tick()
+
+    while tick() - start < timeout and getgenv().PHUCMAX.Running and HRP and (HRP.Position - target).Magnitude > 2 do
+        local dir = (target - HRP.Position)
+        if dir.Magnitude <= 0.2 then break end
+        local vel = dir.Unit * SPEED
+        tempBV.Velocity = Vector3.new(vel.X, vel.Y, vel.Z)
+        pcall(function()
+            tempBG.CFrame = CFrame.new(HRP.Position, HRP.Position + dir.Unit)
+        end)
+        noclipCharacter()
+        task.wait(0.04)
     end
+
+    -- gentle stop and cleanup
     pcall(function()
-        local target = chestPart.Position + Vector3.new(0, FLY_HEIGHT, 0)
-        local timeout = 1.5
-        local start = tick()
-        while tick() - start < timeout and getgenv().PHUCMAX.Running and HRP and (HRP.Position - target).Magnitude > 2 do
-            local dir = (target - HRP.Position)
-            if dir.Magnitude <= 0.2 then break end
-            local vel = dir.Unit * SPEED
-            -- set override velocity so renderstep doesn't overwrite it
-            getgenv().PHUCMAX.OverrideVelocity = Vector3.new(vel.X, vel.Y, vel.Z)
-            if BodyGyro then
-                pcall(function()
-                    BodyGyro.CFrame = CFrame.new(HRP.Position, HRP.Position + dir.Unit)
-                end)
-            end
-            noclipCharacter()
-            task.wait(0.04)
-        end
+        tempBV.Velocity = Vector3.new(0,0,0)
+        tempBV:Destroy()
+        tempBG:Destroy()
     end)
-    -- clear override to allow normal forward behavior
-    getgenv().PHUCMAX.OverrideVelocity = nil
 end
 
--- try to "pickup" chest by touching it (approach and briefly lower to touch) WITHOUT teleport CFrame assignment
+-- try to "pickup" chest by approaching and briefly contacting it using temporary velocities (no teleport)
 local function TryPickupChest(chestPart)
-    if not chestPart or not HRP then return end
+    if not chestPart or not HRP or not HRP.Parent then return end
     -- hover above chest
     MoveToChestPart(chestPart)
     task.wait(0.12)
-    -- lower slightly to make contact (use override velocity to gently move down)
+
+    -- lower slightly to make contact (temporary BV/BG)
     pcall(function()
         local lowTarget = chestPart.Position + Vector3.new(0, 2, 0)
+        local tempBG = Instance.new("BodyGyro")
+        tempBG.Parent = HRP
+        tempBG.P = 9e4
+        tempBG.MaxTorque = Vector3.new(9e9,9e9,9e9)
+        tempBG.D = 1000
+
+        local tempBV = Instance.new("BodyVelocity")
+        tempBV.Parent = HRP
+        tempBV.MaxForce = Vector3.new(9e9,9e9,9e9)
+        tempBV.Velocity = Vector3.new(0,0,0)
+
         local start = tick()
-        local timeout = 0.8
+        local timeout = 1.0
         while tick() - start < timeout and getgenv().PHUCMAX.Running and HRP and (HRP.Position - lowTarget).Magnitude > 1.2 do
             local dir = (lowTarget - HRP.Position)
             if dir.Magnitude <= 0.2 then break end
-            local vel = dir.Unit * math.min(SPEED*0.6, 150) -- slower descent
-            getgenv().PHUCMAX.OverrideVelocity = Vector3.new(vel.X, vel.Y, vel.Z)
-            if BodyGyro then
-                pcall(function()
-                    BodyGyro.CFrame = CFrame.new(HRP.Position, lowTarget)
-                end)
-            end
+            local vel = dir.Unit * math.min(SPEED*0.55, 150) -- slower descent
+            tempBV.Velocity = Vector3.new(vel.X, vel.Y, vel.Z)
+            pcall(function()
+                tempBG.CFrame = CFrame.new(HRP.Position, lowTarget)
+            end)
             noclipCharacter()
             task.wait(0.04)
         end
-    end)
-    task.wait(0.25) -- allow server to register touch
-    -- raise back to hover
-    pcall(function()
+
+        task.wait(0.25) -- allow server to register touch
+
+        -- raise back to hover
         local upTarget = chestPart.Position + Vector3.new(0, FLY_HEIGHT, 0)
-        local start = tick()
-        local timeout = 0.7
-        while tick() - start < timeout and getgenv().PHUCMAX.Running and HRP and (HRP.Position - upTarget).Magnitude > 1.2 do
+        local start2 = tick()
+        local timeout2 = 1.0
+        while tick() - start2 < timeout2 and getgenv().PHUCMAX.Running and HRP and (HRP.Position - upTarget).Magnitude > 1.2 do
             local dir = (upTarget - HRP.Position)
             if dir.Magnitude <= 0.2 then break end
-            local vel = dir.Unit * math.min(SPEED*0.6, 150)
-            getgenv().PHUCMAX.OverrideVelocity = Vector3.new(vel.X, vel.Y, vel.Z)
-            if BodyGyro then
-                pcall(function()
-                    BodyGyro.CFrame = CFrame.new(HRP.Position, upTarget)
-                end)
-            end
+            local vel = dir.Unit * math.min(SPEED*0.55, 150)
+            tempBV.Velocity = Vector3.new(vel.X, vel.Y, vel.Z)
+            pcall(function()
+                tempBG.CFrame = CFrame.new(HRP.Position, upTarget)
+            end)
             noclipCharacter()
             task.wait(0.04)
         end
+
+        pcall(function()
+            tempBV.Velocity = Vector3.new(0,0,0)
+            tempBV:Destroy()
+            tempBG:Destroy()
+        end)
     end)
-    getgenv().PHUCMAX.OverrideVelocity = nil
 end
 
 -- ================= AUTO-JUMP =================
--- Jump once every 1 second while script is running
 task.spawn(function()
     while true do
         task.wait(1)
@@ -582,60 +468,69 @@ task.spawn(function()
     end
 end)
 
--- main loop: runs in background
-task.spawn(function()
-    -- Auto-start: script should auto-run all functions on load (buttons are backup)
+-- ================= UI BUTTONS =================
+UI.StartBtn.MouseButton1Click:Connect(function()
     if not getgenv().PHUCMAX.Running then
         getgenv().PHUCMAX.Running = true
         getgenv().PHUCMAX.StartTime = tick()
     end
-    -- ensure flying started promptly
-    pcall(StartFly)
+end)
+
+UI.StopBtn.MouseButton1Click:Connect(function()
+    getgenv().PHUCMAX.Running = false
+end)
+
+UI.ResetBtn.MouseButton1Click:Connect(function()
+    getgenv().PHUCMAX.Running = false
+    getgenv().PHUCMAX.StartTime = tick()
+    getgenv().PHUCMAX.VisitedServers = {}
+    UI.Info.Text = "Money : 0\nThời gian : 00:00:00\nTrạng thái : Reset"
+end)
+
+-- ================= MAIN LOOP =================
+task.spawn(function()
+    -- Auto-start as before (optional): script will auto-run but movement is per-target (no persistent fly)
+    if not getgenv().PHUCMAX.Running then
+        getgenv().PHUCMAX.Running = true
+        getgenv().PHUCMAX.StartTime = tick()
+    end
 
     while task.wait(1) do
-        -- if user stopped or script paused, ensure fly stopped and continue
         if not getgenv().PHUCMAX.Running then
-            StopFly()
+            task.wait(0.5)
             continue
         end
 
-        -- check forbidden tools each iteration
+        -- check forbidden tools: WARN but do NOT stop automatically per user request
         local has, nm = HasForbiddenTool()
         if has then
-            StopAllDueToTool(nm or "Unknown")
-            break -- break main loop (stop entirely)
+            pcall(WarnForbiddenTool, nm or "Unknown")
+            -- do NOT break or stop the script
         end
 
         -- update char, ensure HRP exists
         pcall(UpdateChar)
-        -- auto team to Marines if possible
-        pcall(AutoTeam)
-        -- fix lag
+        -- AutoTeam intentionally NOT invoked (per user request)
+
+        -- reduce lag where possible
         pcall(FixLag)
-        -- ensure flying
-        pcall(StartFly)
 
         -- find chests
         local chests = GetChests()
         if #chests > 0 then
-            -- iterate through chests and pick them
+            -- iterate through chests and pick them using targeted movement
             for _,c in pairs(chests) do
                 if not getgenv().PHUCMAX.Running then break end
-                -- ensure character and chest valid
                 pcall(UpdateChar)
                 if HRP and c and c:IsA("BasePart") then
-                    -- move close using velocity steering and noclip maintained by Fly loop
-                    MoveToChestPart(c)
+                    MoveToChestPart(c)         -- approach using temporary velocity (keeps height)
                     task.wait(0.25)
-                    -- attempt to pick up (gentle approach)
-                    TryPickupChest(c)
-                    -- wait a little for server to register pickup
+                    TryPickupChest(c)          -- gentle lower & raise via temporary velocity
                     task.wait(0.8)
                 end
             end
         else
-            -- no chests found: stop flying, wait a bit then hop server
-            StopFly()
+            -- no chests found: don't enable persistent fly; wait a bit then hop server to find new chests
             task.wait(SERVER_HOP_DELAY)
             pcall(Hop)
         end
