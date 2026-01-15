@@ -1,14 +1,16 @@
 -- chest4.lua
 -- Chest-only script (cyborg/boss logic removed)
---  - Reliable team selection (improved)
---  - Continuous status notifications
---  - Chest farming, tween movement, no-clip, server hop, anti-AFK
--- Updated: fixes team selection and adds constant notification of current state
+-- Changes in this build:
+--  - Script will NOT auto-start farming on load (you must press START)
+--  - UI reduced to minimal buttons: START, STOP, HOP
+--  - Keeps reliable team selection and continuous status notifications
+--  - Preserves chest farming, tween movement, no-clip, server hop, anti-AFK
+-- Updated: 2026-01-15
 
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer:FindFirstChild("DataLoaded")
 
 -- =================== CONFIG & GLOBALS ===================
-getgenv().team = getgenv().team or "Marines" -- set to "Pirates" to prefer Pirates
+getgenv().team = getgenv().team or "Marines" -- change to "Pirates" if you want
 local UI_BG_IMAGE = "rbxassetid://89799706653949"
 local BTN_BG_IMAGE = "rbxassetid://89799706653949"
 local TOGGLE_IMAGE = "rbxassetid://89799706653949"
@@ -16,8 +18,9 @@ local THEME_COLOR = Color3.fromRGB(140, 0, 255)
 local TweenSpeed = 350
 local SERVER_FETCH_LIMIT = 100
 
+-- Default: do NOT auto-start
 getgenv().ChestFarmer = getgenv().ChestFarmer or {
-    AutoCollectChest = true,
+    AutoCollectChest = false,           -- <- default false (user must press START)
     StopTween = false,
     StopTween2 = false,
     CancelTween2 = false,
@@ -25,7 +28,7 @@ getgenv().ChestFarmer = getgenv().ChestFarmer or {
     AutoHopEnabled = true,
     LastChestCollectedTime = tick(),
     ChestFarmingRunning = false,
-    State = "Initializing" -- used for continuous notifications
+    State = "Idle"                      -- used for continuous notifications
 }
 
 -- services
@@ -39,7 +42,7 @@ local Lighting = game:GetService("Lighting")
 local CoreGui = game:GetService("CoreGui")
 local StarterGui = game:GetService("StarterGui")
 
--- =================== UTILS: Robust remote invoker ===================
+-- =================== UTILS: Remote invoker & scanner ===================
 local function TryInvokeRemote(remote, ...)
     if not remote then return false end
     local suc = false
@@ -55,7 +58,6 @@ local function TryInvokeRemote(remote, ...)
     return suc
 end
 
--- Search common containers for remotes
 local function IterateRemotes(callback)
     local containers = { ReplicatedStorage, game:GetService("ReplicatedFirst"), Workspace }
     for _,cont in ipairs(containers) do
@@ -67,7 +69,6 @@ local function IterateRemotes(callback)
             end
         end
     end
-    -- Also check top-level children of ReplicatedStorage (common pattern)
     if ReplicatedStorage then
         for _,child in ipairs(ReplicatedStorage:GetChildren()) do
             if child:IsA("RemoteFunction") or child:IsA("RemoteEvent") then
@@ -88,7 +89,6 @@ local function SetTeamReliable(teamName, attempts, delay)
     attempts = attempts or 18
     delay = delay or 1.0
 
-    -- fast early exit if already on desired team
     local cur = PlayerOnTeamChanged()
     if cur == teamName then
         return true
@@ -96,7 +96,6 @@ local function SetTeamReliable(teamName, attempts, delay)
 
     getgenv().ChestFarmer.State = "Selecting team: "..tostring(teamName)
 
-    -- listen for team change to stop early
     local done = false
     local conn
     conn = Player:GetPropertyChangedSignal("Team"):Connect(function()
@@ -106,50 +105,39 @@ local function SetTeamReliable(teamName, attempts, delay)
         end
     end)
 
-    -- primary strategies: try common remote call signatures, scanning known containers many times
     for i = 1, attempts do
         if done then break end
 
-        -- try well-known remote container name
         local remContainer = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage
         if remContainer then
-            -- try common remote names
             local names = { "CommF_", "CommF", "Comm", "Remotes", "Remote" }
             for _,n in ipairs(names) do
                 local r = remContainer:FindFirstChild(n)
                 if r then
-                    -- multiple candidate signatures
                     pcall(function() TryInvokeRemote(r, "SetTeam", teamName) end)
                     pcall(function() TryInvokeRemote(r, "SetTeam", teamName, true) end)
                     pcall(function() TryInvokeRemote(r, teamName) end)
-                    pcall(function() TryInvokeRemote(r, { "SetTeam", teamName }) end)
                 end
                 if done then break end
             end
         end
 
-        -- brute-force scan of remotes and try patterns
         IterateRemotes(function(r)
             if done then return end
             local nameLower = tostring(r.Name):lower()
             if nameLower:find("comm") or nameLower:find("team") or nameLower:find("set") then
                 pcall(function() TryInvokeRemote(r, "SetTeam", teamName) end)
                 pcall(function() TryInvokeRemote(r, "SetTeam", teamName, true) end)
-                pcall(function() TryInvokeRemote(r, teamName) end)
-                pcall(function() TryInvokeRemote(r, { "SetTeam", teamName }) end)
             else
-                -- general attempt: try calling with both parameters too
                 pcall(function() TryInvokeRemote(r, "SetTeam", teamName) end)
             end
         end)
 
-        -- short wait between attempts
         for _ = 1, math.max(1, math.floor(delay / 0.1)) do
             if done then break end
             task.wait(0.1)
         end
 
-        -- confirm if changed
         local now = PlayerOnTeamChanged()
         if now == teamName then
             done = true
@@ -157,9 +145,7 @@ local function SetTeamReliable(teamName, attempts, delay)
         end
     end
 
-    if conn and typeof(conn) == "RBXScriptConnection" then
-        pcall(function() conn:Disconnect() end)
-    end
+    if conn and typeof(conn) == "RBXScriptConnection" then pcall(function() conn:Disconnect() end) end
 
     local final = PlayerOnTeamChanged()
     if final == teamName then
@@ -171,15 +157,12 @@ local function SetTeamReliable(teamName, attempts, delay)
     end
 end
 
--- Run team selection in background (non-blocking)
 spawn(function()
-    -- wait for PlayerGui and for initial lobby presence
     repeat task.wait() until Player and Player:FindFirstChild("PlayerGui")
-    -- run reliable set now
     SetTeamReliable(getgenv().team, 20, 1.0)
 end)
 
--- =================== UI (non-invasive) ===================
+-- =================== UI: minimal (Start / Stop / Hop) ===================
 pcall(function()
     if CoreGui:FindFirstChild("PHUCMAX_CHEST_UI") then CoreGui.PHUCMAX_CHEST_UI:Destroy() end
 
@@ -200,13 +183,13 @@ pcall(function()
 
     local Main = Instance.new("Frame", ScreenGui)
     Main.Name = "PHUCMAX_MAIN"
-    Main.Size = UDim2.fromOffset(420,300)
-    Main.Position = UDim2.new(0.5,-210,0.5,-150)
+    Main.Size = UDim2.fromOffset(360,180)
+    Main.Position = UDim2.new(0.5,-180,0.5,-90)
     Main.BackgroundTransparency = 1
     Main.Active = true
     Main.Draggable = true
     Main.Visible = false
-    Instance.new("UICorner", Main).CornerRadius = UDim.new(0,18)
+    Instance.new("UICorner", Main).CornerRadius = UDim.new(0,12)
     local Stroke = Instance.new("UIStroke", Main)
     Stroke.Color = THEME_COLOR
     Stroke.Thickness = 2
@@ -216,24 +199,24 @@ pcall(function()
     BG.Image = UI_BG_IMAGE
     BG.BackgroundTransparency = 1
     BG.ScaleType = Enum.ScaleType.Crop
-    Instance.new("UICorner", BG).CornerRadius = UDim.new(0,18)
+    Instance.new("UICorner", BG).CornerRadius = UDim.new(0,12)
 
     local Title = Instance.new("TextLabel", Main)
     Title.Name = "Title"
-    Title.Size = UDim2.new(1,0,0,45)
+    Title.Size = UDim2.new(1,0,0,36)
     Title.BackgroundTransparency = 1
     Title.Text = "Chest Farmer - PHUCMAX"
     Title.Font = Enum.Font.GothamBlack
-    Title.TextSize = 20
+    Title.TextSize = 18
     Title.TextColor3 = THEME_COLOR
     Title.TextXAlignment = Enum.TextXAlignment.Left
     Title.TextYAlignment = Enum.TextYAlignment.Center
-    Title.Position = UDim2.new(0,18,0,6)
+    Title.Position = UDim2.new(0,12,0,6)
 
     local Info = Instance.new("TextLabel", Main)
     Info.Name = "Info"
-    Info.Position = UDim2.new(0,20,0,60)
-    Info.Size = UDim2.new(1,-40,0,80)
+    Info.Position = UDim2.new(0,12,0,46)
+    Info.Size = UDim2.new(1,-24,0,60)
     Info.BackgroundTransparency = 1
     Info.TextWrapped = true
     Info.TextXAlignment = Enum.TextXAlignment.Left
@@ -241,39 +224,30 @@ pcall(function()
     Info.Font = Enum.Font.Gotham
     Info.TextSize = 14
     Info.TextColor3 = Color3.fromRGB(220,220,220)
-    Info.Text = "Money : 0\nTime : 00:00:00\nState : Idle"
+    Info.Text = "State : Idle"
 
-    local BtnContainer = Instance.new("Frame", Main)
-    BtnContainer.BackgroundTransparency = 1
-    BtnContainer.Size = UDim2.new(1, -40, 0, 100)
-    BtnContainer.Position = UDim2.new(0,20,1,-120)
-
-    local function Button(text, pos)
-        local B = Instance.new("ImageButton", BtnContainer)
-        B.Size = UDim2.fromOffset(120,40)
+    local function MakeBtn(text, pos)
+        local B = Instance.new("ImageButton", Main)
+        B.Size = UDim2.fromOffset(100,36)
         B.Position = pos
         B.Image = BTN_BG_IMAGE
         B.BackgroundTransparency = 0.3
-        Instance.new("UICorner", B).CornerRadius = UDim.new(0,10)
-        local S = Instance.new("UIStroke", B)
-        S.Color = THEME_COLOR
-        S.Thickness = 1
+        Instance.new("UICorner", B).CornerRadius = UDim.new(0,8)
         local T = Instance.new("TextLabel", B)
         T.Size = UDim2.fromScale(1,1)
         T.BackgroundTransparency = 1
-        T.Text = text
         T.Font = Enum.Font.GothamBold
         T.TextSize = 14
+        T.Text = text
         T.TextColor3 = Color3.new(1,1,1)
-        return B, T
+        T.TextXAlignment = Enum.TextXAlignment.Center
+        T.TextYAlignment = Enum.TextYAlignment.Center
+        return B
     end
 
-    local StartBtn, _ = Button("START", UDim2.new(0,0,0,0))
-    local StopBtn, _  = Button("STOP", UDim2.new(0,130,0,0))
-    local ToggleCollectBtn, _ = Button("Toggle Collect", UDim2.new(0,260,0,0))
-    local HopBtn, _ = Button("Hop Now", UDim2.new(0,0,0,50))
-    local ForceStopBtn, _ = Button("Force Stop", UDim2.new(0,130,0,50))
-    local RefreshBtn, _ = Button("REFRESH INFO", UDim2.new(0,260,0,50))
+    local StartBtn = MakeBtn("START", UDim2.new(0,12,1,-46))
+    local StopBtn  = MakeBtn("STOP",  UDim2.new(0,132,1,-46))
+    local HopBtn   = MakeBtn("HOP",   UDim2.new(0,252,1,-46))
 
     Toggle.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
@@ -291,18 +265,7 @@ pcall(function()
             getgenv().ChestFarmer.AutoCollectChest = false
             getgenv().ChestFarmer.StopTween = true
             getgenv().ChestFarmer.StopTween2 = true
-            getgenv().ChestFarmer.State = "Stopped"
-        end)
-    end)
-
-    ToggleCollectBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            getgenv().ChestFarmer.AutoCollectChest = not getgenv().ChestFarmer.AutoCollectChest
-            getgenv().ChestFarmer.State = getgenv().ChestFarmer.AutoCollectChest and "Resumed" or "Paused"
-            if getgenv().ChestFarmer.AutoCollectChest then
-                getgenv().ChestFarmer.ChestFarmingRunning = false
-                if type(AutoChestCollect) == "function" then pcall(AutoChestCollect) end
-            end
+            getgenv().ChestFarmer.State = "Stopped by user"
         end)
     end)
 
@@ -313,38 +276,15 @@ pcall(function()
         end)
     end)
 
-    ForceStopBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            ForceStopChestCollection()
-            getgenv().ChestFarmer.State = "Force stopped"
-        end)
-    end)
-
-    RefreshBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            local beli = 0
-            if Player and Player:FindFirstChild("Data") and Player.Data:FindFirstChild("Beli") then
-                beli = Player.Data.Beli.Value
-            end
-            Info.Text = "Money : "..tostring(beli).."\nTime : 00:00:00\nState : "..( getgenv().ChestFarmer.AutoCollectChest and "Farming" or "Stopped")
-        end)
-    end)
-
     spawn(function()
-        local startTime = tick()
         while task.wait(0.5) do
             pcall(function()
+                local state = getgenv().ChestFarmer.State or "Idle"
                 local beli = 0
                 if Player and Player:FindFirstChild("Data") and Player.Data:FindFirstChild("Beli") then
                     beli = Player.Data.Beli.Value
                 end
-                local t = 0
-                if getgenv().ChestFarmer.AutoCollectChest then t = math.floor(tick() - startTime) end
-                local hours = math.floor(t / 3600) % 24
-                local mins  = math.floor(t / 60) % 60
-                local secs  = t % 60
-                local state = getgenv().ChestFarmer.State or (getgenv().ChestFarmer.AutoCollectChest and "Farming" or "Stopped")
-                Info.Text = "Money : "..tostring(beli).."\nTime : "..string.format("%02d:%02d:%02d", hours, mins, secs).."\nState : "..state
+                Info.Text = "Money : "..tostring(beli).."\nState : "..tostring(state)
             end)
         end
     end)
@@ -357,10 +297,11 @@ local function ApplyFPSBoost()
         Lighting.FogEnd = 9e9
         Lighting.Brightness = 0
         if Workspace:FindFirstChildOfClass("Terrain") then
-            Workspace.Terrain.WaterWaveSize = 0
-            Workspace.Terrain.WaterWaveSpeed = 0
-            Workspace.Terrain.WaterReflectance = 0
-            Workspace.Terrain.WaterTransparency = 0
+            local t = Workspace.Terrain
+            t.WaterWaveSize = 0
+            t.WaterWaveSpeed = 0
+            t.WaterReflectance = 0
+            t.WaterTransparency = 0
         end
         local cnt = 0
         for _,v in pairs(game:GetDescendants()) do
@@ -633,22 +574,16 @@ spawn(function()
     while task.wait(6) do
         pcall(function()
             local state = getgenv().ChestFarmer.State or "Unknown"
-            -- Show short notification; Duration set to 5 so it overlaps but updates regularly
-            StarterGui:SetCore("SendNotification", {
-                Title = "PHUCMAX Status",
-                Text = tostring(state),
-                Duration = 5
-            })
+            StarterGui:SetCore("SendNotification", { Title = "PHUCMAX Status", Text = tostring(state), Duration = 5 })
         end)
     end
 end)
 
--- =================== Initialization ===================
-if getgenv().ChestFarmer.AutoCollectChest then
-    getgenv().ChestFarmer.State = "Auto-starting chest collect"
-    pcall(AutoChestCollect)
-end
+-- =================== Initialization (NO AUTO-START) ===================
+-- Script will NOT start farming until you press the START button in UI.
+getgenv().ChestFarmer.State = "Idle - waiting for START"
 
+-- Maintain stuck-checking when farming is enabled by user
 spawn(function()
     while task.wait(1) do
         if getgenv().ChestFarmer.AutoHopEnabled and getgenv().ChestFarmer.AutoCollectChest then
@@ -657,18 +592,10 @@ spawn(function()
     end
 end)
 
-spawn(function()
-    while task.wait(10) do
-        if getgenv().ChestFarmer.AutoCollectChest and not getgenv().ChestFarmer.ChestFarmingRunning then
-            pcall(AutoChestCollect)
-        end
-    end
-end)
-
 pcall(function()
     StarterGui:SetCore("SendNotification", {
         Title = "Chest Farmer",
-        Text = "Chest-only script loaded. Team selection and notifications active.",
-        Duration = 4
+        Text = "Loaded. Press START in the UI to begin farming.",
+        Duration = 5
     })
 end)
