@@ -6,8 +6,8 @@ repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer:FindFirstC
 
 -- =================== CONFIG ===================
 local UI_BG_IMAGE = "rbxassetid://89799706653949"
-local BTN_BG_IMAGE = "rbxassetid://138311826892324"
-local TOGGLE_IMAGE = "rbxassetid://138094680927347"
+local BTN_BG_IMAGE = "rbxassetid://138094680927347"
+local TOGGLE_IMAGE = "rbxassetid://138311826892324"
 local THEME_COLOR = Color3.fromRGB(140, 0, 255)
 local TweenSpeed = 350
 
@@ -246,7 +246,7 @@ end
 
 ApplyFPSBoost()
 spawn(function()
-    while task.wait(300) do
+    while task.wait(1) do
         pcall(ApplyFPSBoost)
     end
 end)
@@ -590,4 +590,5 @@ pcall(function()
         Text = "Thank you for using the script. .",
         Duration = 5
     })
+
 end)
