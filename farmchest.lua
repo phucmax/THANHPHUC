@@ -1,93 +1,27 @@
--- chest4.lua (complete - chest-only, cyborg/boss logic removed)
--- Features:
---  - Reliable team selection (Marines / Pirates)
---  - Non-invasive UI (Start/Stop/Toggle/Hop/ForceStop/Refresh)
---  - FPS boost
---  - No-clip / anti-gravity helper
---  - Tween movement and safe Tween2 approach
---  - Chest detection & collection loop (snap & bump to ensure pickup)
---  - Server hop (smart) and stuck detection
---  - Anti-AFK / anti-kick
---  - All cyborg/corebrain/fist/boss code removed
+-- chest4.lua
+-- PHUCMAX FARM CHEST (final)
+-- Chest-only script (cyborg/boss logic removed)
+-- Changes in this build:
+--  - Script will NOT auto-start farming on load (press START)
+--  - UI reduced to two buttons: START, STOP
+--  - All notifications use Title = "PHUCMAX FARM CHEST"
+--  - Keeps reliable team selection, chest farming, tween movement, no-clip, server hop, anti-AFK
+-- Updated: 2026-01-15
 
 repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer:FindFirstChild("DataLoaded")
 
--- =================== Reliable team selection ===================
-getgenv().team = getgenv().team or "Marines" -- set to "Pirates" if you want pirates
-
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local LocalPlayer = Players.LocalPlayer
-
-local function TryInvokeRemote(remote, ...)
-    if not remote then return end
-    pcall(function()
-        if remote:IsA("RemoteFunction") and remote.InvokeServer then
-            remote:InvokeServer(...)
-        elseif remote:IsA("RemoteEvent") and remote.FireServer then
-            remote:FireServer(...)
-        end
-    end)
-end
-
-local function SetTeamReliable(teamName, attempts, delay)
-    attempts = attempts or 12
-    delay = delay or 1.2
-    for i = 1, attempts do
-        local ok, currentTeam = pcall(function() return LocalPlayer.Team and LocalPlayer.Team.Name end)
-        if ok and currentTeam == teamName then
-            return true
-        end
-
-        local remotesContainer = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage
-        if remotesContainer then
-            local candidates = { "CommF_", "CommF", "Comm", "Remotes" }
-            for _, name in ipairs(candidates) do
-                local r = remotesContainer:FindFirstChild(name)
-                if r then
-                    TryInvokeRemote(r, "SetTeam", teamName)
-                    TryInvokeRemote(r, "SetTeam", teamName, true)
-                    TryInvokeRemote(r, teamName)
-                end
-            end
-
-            for _, r in ipairs(remotesContainer:GetChildren()) do
-                if (r:IsA("RemoteFunction") or r:IsA("RemoteEvent")) and (r.Name:lower():find("comm") or r.Name:lower():find("setteam") or r.Name:lower():find("team")) then
-                    TryInvokeRemote(r, "SetTeam", teamName)
-                    TryInvokeRemote(r, "SetTeam", teamName, true)
-                end
-            end
-        end
-
-        task.wait(delay)
-    end
-
-    local ok2, currentTeam2 = pcall(function() return LocalPlayer.Team and LocalPlayer.Team.Name end)
-    return ok2 and (currentTeam2 == teamName)
-end
-
-spawn(function()
-    repeat task.wait() until LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui")
-    local tries = 6
-    for i = 1, tries do
-        if LocalPlayer.PlayerGui:FindFirstChild("Main (minimal)") then
-            SetTeamReliable(getgenv().team, 15, 1.0)
-            break
-        end
-        task.wait(1)
-    end
-end)
-
--- =================== Config & Globals ===================
+-- =================== CONFIG & GLOBALS ===================
+getgenv().team = getgenv().team or "Marines" -- change to "Pirates" if you want
 local UI_BG_IMAGE = "rbxassetid://89799706653949"
-local BTN_BG_IMAGE = "rbxassetid://138311826892324"
-local TOGGLE_IMAGE = "rbxassetid://138094680927347"
+local BTN_BG_IMAGE = "rbxassetid://89799706653949"
+local TOGGLE_IMAGE = "rbxassetid://89799706653949"
 local THEME_COLOR = Color3.fromRGB(140, 0, 255)
 local TweenSpeed = 350
 local SERVER_FETCH_LIMIT = 100
 
+-- Default: do NOT auto-start
 getgenv().ChestFarmer = getgenv().ChestFarmer or {
-    AutoCollectChest = true,
+    AutoCollectChest = false,           -- <- default false (user must press START)
     StopTween = false,
     StopTween2 = false,
     CancelTween2 = false,
@@ -95,20 +29,154 @@ getgenv().ChestFarmer = getgenv().ChestFarmer or {
     AutoHopEnabled = true,
     LastChestCollectedTime = tick(),
     ChestFarmingRunning = false,
+    State = "Idle"                      -- used for continuous notifications
 }
 
+-- services
+local Players = game:GetService("Players")
 local Player = Players.LocalPlayer
 local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local HttpService = game:GetService("HttpService")
 local TeleportService = game:GetService("TeleportService")
 local Lighting = game:GetService("Lighting")
+local CoreGui = game:GetService("CoreGui")
+local StarterGui = game:GetService("StarterGui")
 
--- =================== UI (non-invasive) ===================
-pcall(function()
-    local CoreGui = game:GetService("CoreGui")
-    if CoreGui:FindFirstChild("PHUCMAX_CHEST_UI") then
-        CoreGui.PHUCMAX_CHEST_UI:Destroy()
+-- Helper to send uniform notifications
+local function Notify(text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = "PHUCMAX FARM CHEST",
+            Text = tostring(text or ""),
+            Duration = tonumber(duration) or 5
+        })
+    end)
+end
+
+-- =================== UTILS: Remote invoker & scanner ===================
+local function TryInvokeRemote(remote, ...)
+    if not remote then return false end
+    local suc = false
+    pcall(function()
+        if remote:IsA("RemoteFunction") and remote.InvokeServer then
+            remote:InvokeServer(...)
+            suc = true
+        elseif remote:IsA("RemoteEvent") and remote.FireServer then
+            remote:FireServer(...)
+            suc = true
+        end
+    end)
+    return suc
+end
+
+local function IterateRemotes(callback)
+    local containers = { ReplicatedStorage, game:GetService("ReplicatedFirst"), Workspace }
+    for _,cont in ipairs(containers) do
+        if cont then
+            for _,child in ipairs(cont:GetDescendants()) do
+                if child:IsA("RemoteFunction") or child:IsA("RemoteEvent") then
+                    pcall(function() callback(child) end)
+                end
+            end
+        end
     end
+    if ReplicatedStorage then
+        for _,child in ipairs(ReplicatedStorage:GetChildren()) do
+            if child:IsA("RemoteFunction") or child:IsA("RemoteEvent") then
+                pcall(function() callback(child) end)
+            end
+        end
+    end
+end
+
+-- =================== TEAM SELECTION: improved and reliable ===================
+local function PlayerOnTeamChanged()
+    local ok, t = pcall(function() return Player.Team and Player.Team.Name or nil end)
+    if ok and t then return t end
+    return nil
+end
+
+local function SetTeamReliable(teamName, attempts, delay)
+    attempts = attempts or 18
+    delay = delay or 1.0
+
+    local cur = PlayerOnTeamChanged()
+    if cur == teamName then
+        return true
+    end
+
+    getgenv().ChestFarmer.State = "Selecting team: "..tostring(teamName)
+
+    local done = false
+    local conn
+    conn = Player:GetPropertyChangedSignal("Team"):Connect(function()
+        if Player.Team and Player.Team.Name == teamName then
+            done = true
+            pcall(function() conn:Disconnect() end)
+        end
+    end)
+
+    for i = 1, attempts do
+        if done then break end
+
+        local remContainer = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage
+        if remContainer then
+            local names = { "CommF_", "CommF", "Comm", "Remotes", "Remote" }
+            for _,n in ipairs(names) do
+                local r = remContainer:FindFirstChild(n)
+                if r then
+                    pcall(function() TryInvokeRemote(r, "SetTeam", teamName) end)
+                    pcall(function() TryInvokeRemote(r, "SetTeam", teamName, true) end)
+                    pcall(function() TryInvokeRemote(r, teamName) end)
+                end
+                if done then break end
+            end
+        end
+
+        IterateRemotes(function(r)
+            if done then return end
+            local nameLower = tostring(r.Name):lower()
+            if nameLower:find("comm") or nameLower:find("team") or nameLower:find("set") then
+                pcall(function() TryInvokeRemote(r, "SetTeam", teamName) end)
+                pcall(function() TryInvokeRemote(r, "SetTeam", teamName, true) end)
+            else
+                pcall(function() TryInvokeRemote(r, "SetTeam", teamName) end)
+            end
+        end)
+
+        for _ = 1, math.max(1, math.floor(delay / 0.1)) do
+            if done then break end
+            task.wait(0.1)
+        end
+
+        local now = PlayerOnTeamChanged()
+        if now == teamName then
+            done = true
+            break
+        end
+    end
+
+    if conn and typeof(conn) == "RBXScriptConnection" then pcall(function() conn:Disconnect() end) end
+
+    local final = PlayerOnTeamChanged()
+    if final == teamName then
+        getgenv().ChestFarmer.State = "Team set: "..teamName
+        return true
+    else
+        getgenv().ChestFarmer.State = "Team select failed"
+        return false
+    end
+end
+
+spawn(function()
+    repeat task.wait() until Player and Player:FindFirstChild("PlayerGui")
+    SetTeamReliable(getgenv().team, 20, 1.0)
+end)
+
+-- =================== UI: minimal (Start / Stop) ===================
+pcall(function()
+    if CoreGui:FindFirstChild("PHUCMAX_CHEST_UI") then CoreGui.PHUCMAX_CHEST_UI:Destroy() end
 
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "PHUCMAX_CHEST_UI"
@@ -127,13 +195,13 @@ pcall(function()
 
     local Main = Instance.new("Frame", ScreenGui)
     Main.Name = "PHUCMAX_MAIN"
-    Main.Size = UDim2.fromOffset(420,300)
-    Main.Position = UDim2.new(0.5,-210,0.5,-150)
+    Main.Size = UDim2.fromOffset(300,160)
+    Main.Position = UDim2.new(0.5,-150,0.5,-80)
     Main.BackgroundTransparency = 1
     Main.Active = true
     Main.Draggable = true
     Main.Visible = false
-    Instance.new("UICorner", Main).CornerRadius = UDim.new(0,18)
+    Instance.new("UICorner", Main).CornerRadius = UDim.new(0,12)
     local Stroke = Instance.new("UIStroke", Main)
     Stroke.Color = THEME_COLOR
     Stroke.Thickness = 2
@@ -143,24 +211,24 @@ pcall(function()
     BG.Image = UI_BG_IMAGE
     BG.BackgroundTransparency = 1
     BG.ScaleType = Enum.ScaleType.Crop
-    Instance.new("UICorner", BG).CornerRadius = UDim.new(0,18)
+    Instance.new("UICorner", BG).CornerRadius = UDim.new(0,12)
 
     local Title = Instance.new("TextLabel", Main)
     Title.Name = "Title"
-    Title.Size = UDim2.new(1,0,0,45)
+    Title.Size = UDim2.new(1,0,0,34)
     Title.BackgroundTransparency = 1
-    Title.Text = "PHUCMAX-FARM-CHEST"
+    Title.Text = "PHUCMAX FARM CHEST"
     Title.Font = Enum.Font.GothamBlack
-    Title.TextSize = 20
+    Title.TextSize = 16
     Title.TextColor3 = THEME_COLOR
     Title.TextXAlignment = Enum.TextXAlignment.Left
     Title.TextYAlignment = Enum.TextYAlignment.Center
-    Title.Position = UDim2.new(0,18,0,6)
+    Title.Position = UDim2.new(0,10,0,6)
 
     local Info = Instance.new("TextLabel", Main)
     Info.Name = "Info"
-    Info.Position = UDim2.new(0,20,0,60)
-    Info.Size = UDim2.new(1,-40,0,80)
+    Info.Position = UDim2.new(0,10,0,44)
+    Info.Size = UDim2.new(1,-20,0,64)
     Info.BackgroundTransparency = 1
     Info.TextWrapped = true
     Info.TextXAlignment = Enum.TextXAlignment.Left
@@ -168,48 +236,38 @@ pcall(function()
     Info.Font = Enum.Font.Gotham
     Info.TextSize = 14
     Info.TextColor3 = Color3.fromRGB(220,220,220)
-    Info.Text = "Money : 0\nTime : 00:00:00\nState : Idle"
+    Info.Text = "State : Idle"
 
-    local BtnContainer = Instance.new("Frame", Main)
-    BtnContainer.BackgroundTransparency = 1
-    BtnContainer.Size = UDim2.new(1, -40, 0, 100)
-    BtnContainer.Position = UDim2.new(0,20,1,-120)
-
-    local function Button(text, pos)
-        local B = Instance.new("ImageButton", BtnContainer)
-        B.Size = UDim2.fromOffset(120,40)
-        B.Position = pos
+    local function MakeBtn(text, posX)
+        local B = Instance.new("ImageButton", Main)
+        B.Size = UDim2.fromOffset(120,34)
+        B.Position = UDim2.new(0, posX, 1, -44)
         B.Image = BTN_BG_IMAGE
         B.BackgroundTransparency = 0.3
-        Instance.new("UICorner", B).CornerRadius = UDim.new(0,10)
-        local S = Instance.new("UIStroke", B)
-        S.Color = THEME_COLOR
-        S.Thickness = 1
+        Instance.new("UICorner", B).CornerRadius = UDim.new(0,8)
         local T = Instance.new("TextLabel", B)
         T.Size = UDim2.fromScale(1,1)
         T.BackgroundTransparency = 1
-        T.Text = text
         T.Font = Enum.Font.GothamBold
         T.TextSize = 14
+        T.Text = text
         T.TextColor3 = Color3.new(1,1,1)
-        return B, T
+        T.TextXAlignment = Enum.TextXAlignment.Center
+        T.TextYAlignment = Enum.TextYAlignment.Center
+        return B
     end
 
-    local StartBtn, _ = Button("START", UDim2.new(0,0,0,0))
-    local StopBtn, _  = Button("STOP", UDim2.new(0,130,0,0))
-    local ToggleCollectBtn, _ = Button("Toggle Collect", UDim2.new(0,260,0,0))
-    local HopBtn, _ = Button("Hop Now", UDim2.new(0,0,0,50))
-    local ForceStopBtn, _ = Button("Force Stop", UDim2.new(0,130,0,50))
-    local RefreshBtn, _ = Button("REFRESH INFO", UDim2.new(0,260,0,50))
+    local StartBtn = MakeBtn("START", 10)
+    local StopBtn  = MakeBtn("STOP", 170)
 
-    Toggle.MouseButton1Click:Connect(function()
-        Main.Visible = not Main.Visible
-    end)
+    Toggle.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
 
     StartBtn.MouseButton1Click:Connect(function()
         pcall(function()
             getgenv().ChestFarmer.AutoCollectChest = true
             getgenv().ChestFarmer.ChestFarmingRunning = false
+            getgenv().ChestFarmer.State = "Starting farming"
+            Notify("Starting farming", 4)
             if type(AutoChestCollect) == "function" then pcall(AutoChestCollect) end
         end)
     end)
@@ -219,60 +277,20 @@ pcall(function()
             getgenv().ChestFarmer.AutoCollectChest = false
             getgenv().ChestFarmer.StopTween = true
             getgenv().ChestFarmer.StopTween2 = true
-        end)
-    end)
-
-    ToggleCollectBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            getgenv().ChestFarmer.AutoCollectChest = not getgenv().ChestFarmer.AutoCollectChest
-            if getgenv().ChestFarmer.AutoCollectChest then
-                getgenv().ChestFarmer.ChestFarmingRunning = false
-                if type(AutoChestCollect) == "function" then pcall(AutoChestCollect) end
-            end
-        end)
-    end)
-
-    HopBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            if type(HopServer) == "function" then
-                pcall(HopServer)
-            elseif type(SmartServerHop) == "function" then
-                pcall(SmartServerHop)
-            end
-        end)
-    end)
-
-    ForceStopBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            ForceStopChestCollection()
-        end)
-    end)
-
-    RefreshBtn.MouseButton1Click:Connect(function()
-        pcall(function()
-            local beli = 0
-            if Player and Player:FindFirstChild("Data") and Player.Data:FindFirstChild("Beli") then
-                beli = Player.Data.Beli.Value
-            end
-            Info.Text = "Money : "..tostring(beli).."\nTime : 00:00:00\nState : "..( getgenv().ChestFarmer.AutoCollectChest and "Farming" or "Stopped")
+            getgenv().ChestFarmer.State = "Stopped by user"
+            Notify("Stopped by user", 3)
         end)
     end)
 
     spawn(function()
-        local startTime = tick()
         while task.wait(0.5) do
             pcall(function()
+                local state = getgenv().ChestFarmer.State or "Idle"
                 local beli = 0
                 if Player and Player:FindFirstChild("Data") and Player.Data:FindFirstChild("Beli") then
                     beli = Player.Data.Beli.Value
                 end
-                local t = 0
-                if getgenv().ChestFarmer.AutoCollectChest then t = math.floor(tick() - startTime) end
-                local hours = math.floor(t / 3600) % 24
-                local mins  = math.floor(t / 60) % 60
-                local secs  = t % 60
-                local state = getgenv().ChestFarmer.AutoCollectChest and "Farming" or "Stopped"
-                Info.Text = "Money : "..tostring(beli).."\nTime : "..string.format("%02d:%02d:%02d", hours, mins, secs).."\nState : "..state
+                Info.Text = "Money : "..tostring(beli).."\nState : "..tostring(state)
             end)
         end
     end)
@@ -307,9 +325,7 @@ local function ApplyFPSBoost()
     end)
 end
 ApplyFPSBoost()
-spawn(function()
-    while task.wait(60) do pcall(ApplyFPSBoost) end
-end)
+spawn(function() while task.wait(60) do pcall(ApplyFPSBoost) end end)
 
 -- =================== Movement / Tweening / NoClip ===================
 local function EnableNoClipAndAntiGravity()
@@ -333,20 +349,6 @@ local function EnableNoClipAndAntiGravity()
             if char:FindFirstChild("Stun") then char.Stun.Value = 0 end
         end
     end)
-end
-
-function SafeTween(targetCF, speed)
-    local ok, res = pcall(function()
-        local char = Player.Character
-        if not char or not char:FindFirstChild("HumanoidRootPart") then return nil, 0 end
-        local dist = (targetCF.Position - char.HumanoidRootPart.Position).Magnitude
-        local s = speed or TweenSpeed
-        local tweenInfo = TweenInfo.new(math.max(0.05, dist / s), Enum.EasingStyle.Linear)
-        local tween = game:GetService("TweenService"):Create(char.HumanoidRootPart, tweenInfo, {CFrame = targetCF})
-        tween:Play()
-        return tween, dist / s
-    end)
-    if ok then return res else return nil, 0 end
 end
 
 function Tween2(targetCFrame)
@@ -386,8 +388,10 @@ function BKP(Point)
     end)
 end
 
--- =================== Server Hopping ===================
+-- =================== Server Hop ===================
 function HopServer()
+    getgenv().ChestFarmer.State = "Hopping server"
+    Notify("Hopping server", 4)
     local ok, res = pcall(function()
         return game:HttpGet("https://games.roblox.com/v1/games/"..tostring(game.PlaceId).."/servers/Public?limit="..tostring(SERVER_FETCH_LIMIT))
     end)
@@ -404,6 +408,8 @@ end
 
 function SmartServerHop()
     if not getgenv().ChestFarmer.AutoHopEnabled then return end
+    getgenv().ChestFarmer.State = "Hopping server (smart)"
+    Notify("Hopping server (smart)", 4)
     pcall(function()
         local req = game:HttpGet("https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?sortOrder=Asc&limit=100")
         local data = HttpService:JSONDecode(req)
@@ -411,12 +417,7 @@ function SmartServerHop()
         for i,v in pairs(data.data or {}) do
             if v.playing < v.maxPlayers and v.id ~= game.JobId then table.insert(servers, v.id) end
         end
-        if #servers > 0 then
-            TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1,#servers)], Player)
-        else
-            task.wait(30)
-            SmartServerHop()
-        end
+        if #servers > 0 then TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1,#servers)], Player) end
     end)
 end
 
@@ -424,7 +425,7 @@ if pcall(function() game:HttpGet("https://games.roblox.com/v1/games/"..game.Plac
     HopServer = SmartServerHop
 end
 
--- =================== Chest Detection & Collection ===================
+-- =================== Chest detection & collection ===================
 local function GetChest()
     local best
     local dist = math.huge
@@ -460,13 +461,8 @@ function ForceStopChestCollection()
     getgenv().ChestFarmer.StopTween = true
     getgenv().ChestFarmer.StopTween2 = true
     getgenv().ChestFarmer.CancelTween2 = false
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "PHUCMAX",
-            Text = "Chest collection forced stop",
-            Duration = 3
-        })
-    end)
+    getgenv().ChestFarmer.State = "Force stopped"
+    Notify("Chest collection forced stop", 3)
 end
 
 local function GetMoneyValue()
@@ -484,12 +480,19 @@ function AutoChestCollect()
     getgenv().ChestFarmer.ChestFarmingRunning = true
     spawn(function()
         while task.wait(0.1) do
-            if not getgenv().ChestFarmer.AutoCollectChest then task.wait(1); continue end
+            if not getgenv().ChestFarmer.AutoCollectChest then
+                getgenv().ChestFarmer.State = "Idle"
+                task.wait(1)
+                continue
+            end
+
+            getgenv().ChestFarmer.State = "Finding chest"
             local char = Player.Character
             if not char or not char:FindFirstChild("HumanoidRootPart") then task.wait(1); continue end
 
             local chest = GetChest()
             if chest and chest.Parent then
+                getgenv().ChestFarmer.State = "Approaching chest"
                 local targetCFrame = CFrame.new(chest.Position + Vector3.new(0, 1.2, 0))
                 pcall(function() Tween2(targetCFrame) end)
 
@@ -505,13 +508,18 @@ function AutoChestCollect()
                         local nowMoney = GetMoneyValue()
                         if nowMoney > prevMoney then
                             getgenv().ChestFarmer.LastChestCollectedTime = tick()
+                            getgenv().ChestFarmer.State = "Collected chest"
+                            Notify("Collected chest", 2)
                             break
                         end
                     end
                 end)
                 task.wait(0.15)
             else
+                getgenv().ChestFarmer.State = "No chest nearby"
                 if tick() - getgenv().ChestFarmer.LastChestCollectedTime > 60 then
+                    getgenv().ChestFarmer.State = "Idle - hopping soon"
+                    Notify("No chest found recently, hopping server", 3)
                     pcall(HopServer)
                     task.wait(5)
                 end
@@ -534,7 +542,10 @@ function CheckIfStuckAndHop()
                 if tick() - stuckSince > 30 then
                     pcall(function() char.HumanoidRootPart.CFrame = char.HumanoidRootPart.CFrame + Vector3.new(0,5,0) end)
                     task.wait(2)
-                    if (char.HumanoidRootPart.Position - pos).Magnitude < 1 then pcall(HopServer) end
+                    if (char.HumanoidRootPart.Position - pos).Magnitude < 1 then
+                        Notify("Stuck - hopping server", 4)
+                        pcall(HopServer)
+                    end
                     stuckSince = 0
                 end
             else
@@ -545,7 +556,7 @@ function CheckIfStuckAndHop()
     end)
 end
 
--- =================== Auto-jump (anti-AFK) ===================
+-- =================== Auto-jump (anti-AFK) & Anti-kick ===================
 spawn(function()
     local player = Players.LocalPlayer
     while task.wait(math.random(15,20)) do
@@ -557,7 +568,6 @@ spawn(function()
     end
 end)
 
--- =================== Anti-kick ===================
 spawn(function()
     while task.wait(1) do
         pcall(function()
@@ -570,9 +580,21 @@ spawn(function()
     end
 end)
 
--- =================== Initialization ===================
-if getgenv().ChestFarmer.AutoCollectChest then pcall(AutoChestCollect) end
+-- =================== Continuous status notifications ===================
+spawn(function()
+    while task.wait(6) do
+        pcall(function()
+            local state = getgenv().ChestFarmer.State or "Unknown"
+            Notify(state, 5)
+        end)
+    end
+end)
 
+-- =================== Initialization (NO AUTO-START) ===================
+getgenv().ChestFarmer.State = "PHUCMAX"
+Notify("loading successful ", 5)
+
+-- Maintain stuck-checking when farming is enabled by user
 spawn(function()
     while task.wait(1) do
         if getgenv().ChestFarmer.AutoHopEnabled and getgenv().ChestFarmer.AutoCollectChest then
@@ -587,12 +609,4 @@ spawn(function()
             pcall(AutoChestCollect)
         end
     end
-end)
-
-pcall(function()
-    game:GetService("StarterGui"):SetCore("SendNotification", {
-        Title = "PHUCMAX",
-        Text = "Thank you for using my script. ",
-        Duration = 5
-    })
 end)
