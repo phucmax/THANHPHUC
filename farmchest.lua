@@ -1,28 +1,50 @@
 --// PHUCMAX | Farm Chest v1
---// Mobile Friendly | Executor Only
+--// Stable Fix | Mobile | Executor
 
 repeat task.wait() until game:IsLoaded()
+
+-- ================= SERVICES =================
 local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Lighting = game:GetService("Lighting")
+local Workspace = game:GetService("Workspace")
+
+local Player = Players.LocalPlayer
 
 -- ================= CONFIG =================
-local UI_BG_IMAGE = "rbxassetid://89799706653949" -- <<< ID ảnh background UI
-local BTN_BG_IMAGE = "rbxassetid://89799706653949" -- <<< ID ảnh nút
-local TOGGLE_IMAGE = "rbxassetid://89799706653949" -- <<< ID ảnh nút tròn
-local THEME_COLOR = Color3.fromRGB(140, 0, 255) -- tím rợn gamer
--- ==========================================
+local UI_BG_IMAGE = "rbxassetid://89799706653949"
+local BTN_BG_IMAGE = "rbxassetid://89799706653949"
+local TOGGLE_IMAGE = "rbxassetid://89799706653949"
+local THEME_COLOR = Color3.fromRGB(140, 0, 255)
 
+-- ================= GLOBAL STATE =================
 getgenv().PHUCMAX = {
     Running = false,
+    Flying = false,
     StartTime = 0
 }
 
--- ================= UI SETUP =================
+-- ================= CHARACTER =================
+local Character, HRP
+
+local function UpdateChar()
+    Character = Player.Character or Player.CharacterAdded:Wait()
+    HRP = Character:WaitForChild("HumanoidRootPart")
+end
+UpdateChar()
+
+Player.CharacterAdded:Connect(function()
+    task.wait(1)
+    UpdateChar()
+end)
+
+-- ================= UI =================
 local ScreenGui = Instance.new("ScreenGui", game.CoreGui)
 ScreenGui.Name = "PHUCMAX_UI"
 ScreenGui.ResetOnSpawn = false
 
--- Toggle Button
 local Toggle = Instance.new("ImageButton", ScreenGui)
 Toggle.Size = UDim2.fromOffset(60,60)
 Toggle.Position = UDim2.new(0,10,0.5,-30)
@@ -31,32 +53,26 @@ Toggle.BackgroundTransparency = 1
 Toggle.Active = true
 Toggle.Draggable = true
 
--- Main Frame
 local Main = Instance.new("Frame", ScreenGui)
 Main.Size = UDim2.fromOffset(420,260)
 Main.Position = UDim2.new(0.5,-210,0.5,-130)
 Main.BackgroundTransparency = 1
-Main.Visible = true
 Main.Active = true
 Main.Draggable = true
 
-local UICorner = Instance.new("UICorner", Main)
-UICorner.CornerRadius = UDim.new(0,18)
+Instance.new("UICorner", Main).CornerRadius = UDim.new(0,18)
 
 local Stroke = Instance.new("UIStroke", Main)
 Stroke.Color = THEME_COLOR
 Stroke.Thickness = 2
-Stroke.Transparency = 0
 
 local BG = Instance.new("ImageLabel", Main)
 BG.Size = UDim2.fromScale(1,1)
 BG.Image = UI_BG_IMAGE
 BG.BackgroundTransparency = 1
 BG.ScaleType = Enum.ScaleType.Crop
-BG.ZIndex = 0
 Instance.new("UICorner", BG).CornerRadius = UDim.new(0,18)
 
--- ================= TEXT =================
 local Title = Instance.new("TextLabel", Main)
 Title.Size = UDim2.new(1,0,0,45)
 Title.BackgroundTransparency = 1
@@ -85,19 +101,16 @@ Info.Font = Enum.Font.Gotham
 Info.TextSize = 15
 Info.TextColor3 = Color3.fromRGB(220,220,220)
 
--- ================= BUTTONS =================
-local function CreateButton(text,pos)
+local function Button(text,pos)
     local B = Instance.new("ImageButton", Main)
     B.Size = UDim2.fromOffset(110,45)
     B.Position = pos
     B.Image = BTN_BG_IMAGE
     B.BackgroundTransparency = 1
-
     Instance.new("UICorner", B).CornerRadius = UDim.new(0,12)
     local S = Instance.new("UIStroke", B)
     S.Color = THEME_COLOR
     S.Thickness = 1.5
-
     local T = Instance.new("TextLabel", B)
     T.Size = UDim2.fromScale(1,1)
     T.BackgroundTransparency = 1
@@ -108,11 +121,10 @@ local function CreateButton(text,pos)
     return B
 end
 
-local StartBtn = CreateButton("START", UDim2.new(0.1,0,1,-60))
-local StopBtn  = CreateButton("STOP",  UDim2.new(0.37,0,1,-60))
-local ResetBtn = CreateButton("RESET", UDim2.new(0.64,0,1,-60))
+local StartBtn = Button("START", UDim2.new(0.1,0,1,-60))
+local StopBtn  = Button("STOP",  UDim2.new(0.37,0,1,-60))
+local ResetBtn = Button("RESET", UDim2.new(0.64,0,1,-60))
 
--- ================= LOGIC =================
 Toggle.MouseButton1Click:Connect(function()
     Main.Visible = not Main.Visible
 end)
@@ -133,41 +145,18 @@ ResetBtn.MouseButton1Click:Connect(function()
     getgenv().PHUCMAX.StartTime = tick()
 end)
 
--- ================= UPDATE LOOP =================
 task.spawn(function()
     while task.wait(0.3) do
         local beli = 0
         pcall(function()
-            beli = LocalPlayer.Data.Beli.Value
+            beli = Player.Data.Beli.Value
         end)
-
-        local timeUse = 0
-        if getgenv().PHUCMAX.Running then
-            timeUse = tick() - getgenv().PHUCMAX.StartTime
-        end
-
-        local h = math.floor(timeUse/3600)
-        local m = math.floor((timeUse%3600)/60)
-        local s = math.floor(timeUse%60)
-
-        Info.Text =
-            "Money : "..beli.."\n"..
-            string.format("Time : %02d:%02d:%02d",h,m,s)
+        local t = getgenv().PHUCMAX.Running and (tick()-getgenv().PHUCMAX.StartTime) or 0
+        Info.Text = "Money : "..beli.."\nTime : "..string.format("%02d:%02d:%02d",t/3600%24,t/60%60,t%60)
     end
 end)
 
--- ================= SERVICES =================
-local RS = game:GetService("RunService")
-local TS = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local Lighting = game:GetService("Lighting")
-local Workspace = game:GetService("Workspace")
-
-local Player = Players.LocalPlayer
-local Character = Player.Character or Player.CharacterAdded:Wait()
-local HRP = Character:WaitForChild("HumanoidRootPart")
-
--- ================= TEAM MARINES =================
+-- ================= AUTO TEAM =================
 local function AutoTeam()
     if Player.PlayerGui:FindFirstChild("Main (minimal)") then
         repeat task.wait(1)
@@ -178,14 +167,14 @@ end
 
 -- ================= FIX LAG =================
 local function FixLag()
-    pcall(function()
-        Lighting.GlobalShadows = false
-        Lighting.Brightness = 1
-        Lighting.FogEnd = 9e9
-        Lighting.EnvironmentDiffuseScale = 0
-        Lighting.EnvironmentSpecularScale = 0
-    end)
-
+    Lighting.GlobalShadows = false
+    Lighting.Brightness = 1
+    Lighting.FogEnd = 9e9
+    if Workspace:FindFirstChildOfClass("Terrain") then
+        Workspace.Terrain.WaterWaveSize = 0
+        Workspace.Terrain.WaterWaveSpeed = 0
+        Workspace.Terrain.WaterTransparency = 1
+    end
     for _,v in pairs(Workspace:GetDescendants()) do
         if v:IsA("BasePart") then
             v.Material = Enum.Material.SmoothPlastic
@@ -193,98 +182,82 @@ local function FixLag()
             v.Reflectance = 0
         elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
             v.Enabled = false
-        elseif v:IsA("Water") then
-            v:Destroy()
         end
     end
 end
 
--- ================= FLY + NOCLIP =================
+-- ================= FLY =================
 local BodyGyro, BodyVel
 local function StartFly()
+    if getgenv().PHUCMAX.Flying then return end
+    getgenv().PHUCMAX.Flying = true
+
     BodyGyro = Instance.new("BodyGyro", HRP)
     BodyGyro.P = 9e4
     BodyGyro.MaxTorque = Vector3.new(9e9,9e9,9e9)
-    BodyGyro.CFrame = HRP.CFrame
 
     BodyVel = Instance.new("BodyVelocity", HRP)
-    BodyVel.Velocity = Vector3.new(0,0,0)
     BodyVel.MaxForce = Vector3.new(9e9,9e9,9e9)
 
-    RS:BindToRenderStep("Fly", Enum.RenderPriority.Character.Value, function()
+    RunService:BindToRenderStep("PHUCMAX_FLY", 1, function()
         if not getgenv().PHUCMAX.Running then return end
         BodyGyro.CFrame = workspace.CurrentCamera.CFrame
         BodyVel.Velocity = workspace.CurrentCamera.CFrame.LookVector * 350
-    end)
-
-    RS:BindToRenderStep("Noclip", 1, function()
-        for _,v in pairs(Character:GetDescendants()) do
-            if v:IsA("BasePart") then v.CanCollide = false end
+        for _,p in pairs(Character:GetDescendants()) do
+            if p:IsA("BasePart") then p.CanCollide = false end
         end
     end)
 end
 
 local function StopFly()
-    RS:UnbindFromRenderStep("Fly")
-    RS:UnbindFromRenderStep("Noclip")
+    getgenv().PHUCMAX.Flying = false
+    RunService:UnbindFromRenderStep("PHUCMAX_FLY")
     if BodyGyro then BodyGyro:Destroy() end
     if BodyVel then BodyVel:Destroy() end
 end
 
--- ================= CHEST SCAN =================
+-- ================= CHEST =================
 local function GetChests()
-    local chests = {}
+    local t = {}
     for _,v in pairs(Workspace:GetDescendants()) do
-        if v.Name:lower():find("chest") and v:IsA("BasePart") then
-            table.insert(chests,v)
+        if v:IsA("BasePart") and v.Name:lower():find("chest") then
+            table.insert(t,v)
         end
     end
-    return chests
+    return t
 end
 
--- ================= TOOL CHECK =================
-local function HasItem(name)
-    return Player.Backpack:FindFirstChild(name) or Character:FindFirstChild(name)
-end
-
--- ================= SERVER HOP NO DUP =================
-local VisitedServers = {}
+-- ================= SERVER HOP =================
+local Visited = {}
 local function Hop()
-    local PlaceId = game.PlaceId
-    local servers = HttpService:JSONDecode(
-        game:HttpGet("https://games.roblox.com/v1/games/"..PlaceId.."/servers/Public?sortOrder=Asc&limit=100")
-    )
-
+    local servers = HttpService:JSONDecode(game:HttpGet(
+        "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?limit=100"
+    ))
     for _,v in pairs(servers.data) do
-        if v.playing < v.maxPlayers and not VisitedServers[v.id] then
-            VisitedServers[v.id] = true
-            TS:TeleportToPlaceInstance(PlaceId, v.id, Player)
+        if not Visited[v.id] and v.playing < v.maxPlayers then
+            Visited[v.id] = true
+            TeleportService:TeleportToPlaceInstance(game.PlaceId,v.id,Player)
             break
         end
     end
 end
 
--- ================= MAIN LOOP =================
+-- ================= MAIN =================
 task.spawn(function()
     while task.wait(1) do
         if getgenv().PHUCMAX.Running then
+            UpdateChar()
             AutoTeam()
             FixLag()
             StartFly()
 
-            -- STOP CONDITION
-            if HasItem("God's Chalice") and HasItem("Blackbeard Key") then
-                getgenv().PHUCMAX.Running = false
-                StopFly()
-                break
-            end
-
-            local Chests = GetChests()
-            if #Chests > 0 then
-                for _,c in pairs(Chests) do
+            local chests = GetChests()
+            if #chests > 0 then
+                for _,c in pairs(chests) do
                     if not getgenv().PHUCMAX.Running then break end
-                    HRP.CFrame = c.CFrame + Vector3.new(0,5,0)
-                    task.wait(0.2)
+                    UpdateChar()
+                    HRP.CFrame = c.CFrame + Vector3.new(0,6,0)
+                    task.wait(0.25)
                 end
             else
                 StopFly()
