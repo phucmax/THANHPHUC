@@ -1,17 +1,11 @@
---// PHUCMAX | Farm Chest v1 (Adjusted per user request)
---// Mobile / Executor friendly
---// Updated: 2026-01-15 (patched: auto-start, non-tele pickup, persistent toggle, safer movement)
---// Further update: 2026-01-15 (smooth direct-approach pickup)
---// Changes in this copy:
---//  - Direct, same-height approach into chests (no hover/descend/ascend)
---//  - No slowing while approaching (avoids mid-flight stutter)
---//  - Fast chest detection + immediate money-check to confirm pickup
---//  - Removed aggressive noclip to avoid getting stuck; only non-invasive fixes kept
---//  - If pickup not detected, a short high-speed bump is attempted
---//  - UI/buttons preserved. Script still auto-starts by default.
---//  - NEW: farm only current island (chests within ISLAND_RADIUS of starting position)
---//  - NEW: teleport-to-chest if distance > TELEPORT_DISTANCE (default 10 studs)
---//  - NEW: after island chests exhausted -> Hop server
+--// PHUCMAX | Farm Chest v1 (Island-clustered + near-teleport snap)
+--// Updated: 2026-01-15 (patched: island clustering, snap-teleport when near, fix pickup/tele behavior)
+--// Behavior summary:
+--//  - Determine island by clustering chests and pick the largest cluster as "current island"
+--//  - Fly between chests; when within TELEPORT_NEAR_DISTANCE (default 5) the script will teleport directly above chest to guarantee pickup
+--//  - Do NOT teleport just because chest is far (avoids unnecessary teleports)
+--//  - When island chests exhausted -> server hop
+--//  - Preserves money-delta pickup detection and safer movement
 
 repeat task.wait() until game:IsLoaded()
 
@@ -30,25 +24,24 @@ local UI_BG_IMAGE = "rbxassetid://89799706653949" -- background image id (main)
 local BTN_BG_IMAGE = "rbxassetid://89799706653949" -- button background id
 local TOGGLE_IMAGE = "rbxassetid://89799706653949" -- toggle circular image id
 local THEME_COLOR = Color3.fromRGB(140, 0, 255) -- main accent
-local SPEED = 350 -- fly-forward speed when moving to a chest (user requested)
-local APPROACH_HEIGHT_OFFSET = 1 -- how high above the chest's position we aim (keeps Y aligned with chest)
+local SPEED = 350 -- fly-forward speed when moving to a chest
+local APPROACH_HEIGHT_OFFSET = 1 -- how high above the chest's position we aim
 local FIXLAG_BRIGHTNESS_FACTOR = 0.3 -- reduce brightness to 30% (70% reduction)
 local SERVER_FETCH_LIMIT = 100 -- how many servers to fetch per request
 local SERVER_HOP_DELAY = 2 -- wait before trying to hop
 local FORBIDDEN_TOOL_KEYWORDS = { "chalice", "god", "godschalice", "blackbeard", "black beard", "blackbeards", "key", "bkey", "rauden" } -- heuristics
 
 -- NEW: island farming and teleport thresholds
-local ISLAND_RADIUS = 250 -- studs radius to define "current island" (tweak if needed)
-local TELEPORT_DISTANCE = 10 -- if chest is farther than this, teleport straight to it (studs)
+local ISLAND_RADIUS = 250 -- studs radius to define island membership
+local TELEPORT_NEAR_DISTANCE = 5 -- when closer than this, snap-teleport into chest to guarantee pickup
 
 -- ================= GLOBAL STATE =================
 getgenv().PHUCMAX = getgenv().PHUCMAX or {
     Running = false,
-    Flying = false, -- retained flag but we do NOT enable persistent fly by default
+    Flying = false,
     StartTime = 0,
     VisitedServers = {},
     OverrideVelocity = nil,
-    -- NEW fields:
     CurrentIslandCenter = nil,
     IslandChests = {}, -- list of chests (parts) considered part of current island
 }
@@ -221,17 +214,10 @@ task.spawn(function()
         local hours = math.floor(t / 3600) % 24
         local mins  = math.floor(t / 60) % 60
         local secs  = t % 60
-        local state = getgenv().PHUCMAX.Running and "Farming (direct approach)" or "Đang dừng"
+        local state = getgenv().PHUCMAX.Running and "Farming (island-clustered)" or "Đang dừng"
         UI.Info.Text = "Money : "..tostring(beli).."\nThời gian : "..string.format("%02d:%02d:%02d", hours, mins, secs).."\nTrạng thái : "..state
     end
 end)
-
--- ================= AUTO TEAM =================
--- NOTE: per user request, we will NOT auto-select team (Marines). AutoTeam logic is left but not invoked.
-local function AutoTeam()
-    -- no-op (disabled): kept for reference but intentionally not used
-    return
-end
 
 -- ================= FIX LAG =================
 local function FixLag()
@@ -315,6 +301,37 @@ local function RemoveChestFromList(list, chest)
     end
 end
 
+-- Determine island center by clustering chests and returning largest cluster center + members
+local function DetermineIslandCenter(chests)
+    if not chests or #chests == 0 then return nil, {} end
+    local clusters = {}
+    for _,c in ipairs(chests) do
+        if c and c.Position then
+            local placed = false
+            for _,cl in ipairs(clusters) do
+                if (c.Position - cl.center).Magnitude <= ISLAND_RADIUS then
+                    table.insert(cl.members, c)
+                    -- recompute center
+                    local sum = Vector3.new(0,0,0)
+                    for _,m in ipairs(cl.members) do sum = sum + m.Position end
+                    cl.center = sum / #cl.members
+                    placed = true
+                    break
+                end
+            end
+            if not placed then
+                table.insert(clusters, { center = c.Position, members = { c } })
+            end
+        end
+    end
+    if #clusters == 0 then return nil, {} end
+    local best = clusters[1]
+    for _,cl in ipairs(clusters) do
+        if #cl.members > #best.members then best = cl end
+    end
+    return best.center, best.members
+end
+
 -- ================= FORBIDDEN TOOL DETECTION =================
 local function HasForbiddenTool()
     local function checkContainer(cont)
@@ -340,7 +357,6 @@ local function HasForbiddenTool()
 end
 
 local function WarnForbiddenTool(foundName)
-    -- Do not stop the script automatically. Just warn the user and update UI.
     UI.Info.Text = "Cảnh báo : Đã phát hiện ["..tostring(foundName).."]. Script sẽ tiếp tục."
     pcall(function()
         game:GetService("StarterGui"):SetCore("ChatMakeSystemMessage", {
@@ -386,25 +402,18 @@ local function TeleportToChest(chestPart)
     pcall(UpdateChar)
     if not HRP or not HRP.Parent then return false end
     local ok = pcall(function()
-        -- place HRP slightly above chest to avoid embedding in ground
         HRP.CFrame = CFrame.new(chestPart.Position + Vector3.new(0, APPROACH_HEIGHT_OFFSET + 0.4, 0))
-        -- small settle
         task.wait(0.06)
     end)
     return ok
 end
 
--- ================= MOVEMENT & PICKUP: direct same-height approach =================
--- This function approaches the chest at roughly the chest's height (APPROACH_HEIGHT_OFFSET),
--- does NOT slow down while approaching, and checks the player's money value continuously.
--- When money increases during the approach, the function treats the chest as picked and returns true.
--- If approach completes without pickup, it will attempt a short high-speed bump into the chest to try registering touch.
+-- ================= MOVEMENT & PICKUP: direct same-height approach with snap-tele support =================
 local function MoveAndPickupChest(chestPart)
     if not chestPart or not HRP or not HRP.Parent then return false end
     pcall(UpdateChar)
     if not HRP or not HRP.Parent then return false end
 
-    -- Remember starting money
     local startMoney = GetMoneyValue()
 
     local tempBG = Instance.new("BodyGyro")
@@ -418,21 +427,29 @@ local function MoveAndPickupChest(chestPart)
     tempBV.MaxForce = Vector3.new(9e9,9e9,9e9)
     tempBV.Velocity = Vector3.new(0,0,0)
 
-    -- Target is aligned with chest height (so we fly straight into it)
     local target = chestPart.Position + Vector3.new(0, APPROACH_HEIGHT_OFFSET, 0)
     local start = tick()
-    local timeout = 3.5 -- allow more time for approach
+    local timeout = 4.0
     local picked = false
 
-    -- Continuous approach: DO NOT reduce speed (use full SPEED) and check money often
-    while tick() - start < timeout and getgenv().PHUCMAX.Running and HRP and (HRP.Position - target).Magnitude > 2.5 do
+    while tick() - start < timeout and getgenv().PHUCMAX.Running and HRP and (HRP.Position - target).Magnitude > 1.5 do
         local dir = (target - HRP.Position)
-        if dir.Magnitude <= 0.2 then break end
+        if dir.Magnitude <= 0.15 then break end
         local vel = dir.Unit * SPEED
         tempBV.Velocity = Vector3.new(vel.X, vel.Y, vel.Z)
         pcall(function()
             tempBG.CFrame = CFrame.new(HRP.Position, HRP.Position + dir.Unit)
         end)
+
+        -- If we get very near, snap-tele into chest to guarantee pickup
+        local distToChest = (chestPart.Position - HRP.Position).Magnitude
+        if distToChest <= TELEPORT_NEAR_DISTANCE then
+            pcall(function()
+                tempBV.Velocity = Vector3.new(0,0,0)
+                TeleportToChest(chestPart)
+            end)
+            task.wait(0.06)
+        end
 
         -- fast money check: if changed, chest considered picked
         local nowMoney = GetMoneyValue()
@@ -441,7 +458,7 @@ local function MoveAndPickupChest(chestPart)
             break
         end
 
-        -- If velocity stalls (possible collision), try a tiny jump to dislodge
+        -- small anti-stall: if stuck, try jump
         if HRP.AssemblyLinearVelocity.Magnitude < 2 and (HRP.Position - target).Magnitude > 6 then
             pcall(function()
                 if Humanoid and Humanoid.Parent then
@@ -453,13 +470,13 @@ local function MoveAndPickupChest(chestPart)
         task.wait(0.03)
     end
 
-    -- If not detected yet, attempt a short high-speed bump (0.18s) directly into the chest
+    -- Bump attempt if not picked yet
     if not picked and getgenv().PHUCMAX.Running and HRP and (HRP.Position - target).Magnitude > 1.2 then
         local bumpDir = (chestPart.Position - HRP.Position).Unit
         local bumpTime = 0.18
         local bumpStart = tick()
         while tick() - bumpStart < bumpTime and getgenv().PHUCMAX.Running do
-            tempBV.Velocity = bumpDir * SPEED * 1.0 -- full force bump
+            tempBV.Velocity = bumpDir * SPEED * 1.0
             local nowMoney = GetMoneyValue()
             if nowMoney > startMoney then
                 picked = true
@@ -469,19 +486,17 @@ local function MoveAndPickupChest(chestPart)
         end
     end
 
-    -- Gentle stop and cleanup
+    -- cleanup
     pcall(function()
         tempBV.Velocity = Vector3.new(0,0,0)
         tempBV:Destroy()
         tempBG:Destroy()
     end)
 
-    -- Small settle wait to allow server to register pickup; but short to keep responsiveness
     if picked then
         task.wait(0.08)
     else
         task.wait(0.12)
-        -- final money check
         local nowMoney = GetMoneyValue()
         if nowMoney > startMoney then picked = true end
     end
@@ -511,7 +526,6 @@ UI.StartBtn.MouseButton1Click:Connect(function()
     if not getgenv().PHUCMAX.Running then
         getgenv().PHUCMAX.Running = true
         getgenv().PHUCMAX.StartTime = tick()
-        -- reset island context so it captures current island at start
         getgenv().PHUCMAX.CurrentIslandCenter = nil
         getgenv().PHUCMAX.IslandChests = {}
     end
@@ -532,46 +546,53 @@ end)
 
 -- ================= MAIN LOOP =================
 task.spawn(function()
-    -- Auto-start as before (optional): script will auto-run but movement is per-target (no persistent fly)
+    -- Auto-start
     if not getgenv().PHUCMAX.Running then
         getgenv().PHUCMAX.Running = true
         getgenv().PHUCMAX.StartTime = tick()
     end
 
-    while task.wait(0.8) do -- slight delay between scans (fast enough for "siêu nhanh" chest checks)
+    while task.wait(0.8) do
         if not getgenv().PHUCMAX.Running then
             task.wait(0.5)
             continue
         end
 
-        -- check forbidden tools: WARN but do NOT stop automatically per user request
+        -- warn if forbidden tool present
         local has, nm = HasForbiddenTool()
         if has then
             pcall(WarnForbiddenTool, nm or "Unknown")
-            -- do NOT break or stop the script
         end
 
-        -- update char, ensure HRP exists
         pcall(UpdateChar)
-        -- AutoTeam intentionally NOT invoked (per user request)
-
-        -- reduce lag where possible
         pcall(FixLag)
 
-        -- find all chests in the world
         local allChests = GetChests()
 
-        -- If we don't yet have an island center, set it from current HRP position and capture island chests
+        -- If we don't have a current island center, determine it from chest clusters (largest cluster)
         if not getgenv().PHUCMAX.CurrentIslandCenter then
-            if HRP and HRP.Position then
-                getgenv().PHUCMAX.CurrentIslandCenter = HRP.Position
-                -- capture island chests at this moment (only these will be farmed)
-                getgenv().PHUCMAX.IslandChests = FilterChestsByIsland(allChests, getgenv().PHUCMAX.CurrentIslandCenter)
+            local center, members = DetermineIslandCenter(allChests)
+            if center and #members > 0 then
+                getgenv().PHUCMAX.CurrentIslandCenter = center
+                -- store unique parts (members may contain duplicates if same part referenced)
+                getgenv().PHUCMAX.IslandChests = {}
+                for _,m in ipairs(members) do
+                    local exists = false
+                    for _,x in ipairs(getgenv().PHUCMAX.IslandChests) do
+                        if x == m then exists = true; break end
+                    end
+                    if not exists then table.insert(getgenv().PHUCMAX.IslandChests, m) end
+                end
+            else
+                -- no chests found at all -> hop
+                pcall(function() Hop() end)
+                task.wait(SERVER_HOP_DELAY)
+                getgenv().PHUCMAX.Running = false
+                break
             end
         else
-            -- maintain island chest list: remove chests no longer valid and add any newly discovered within island radius (optional)
+            -- refresh island chest list (add newly spawned chests on same island, remove invalid ones)
             local islandCandidates = FilterChestsByIsland(allChests, getgenv().PHUCMAX.CurrentIslandCenter)
-            -- refresh island list to include any new ones that appear on the same island
             for _,c in ipairs(islandCandidates) do
                 local exists = false
                 for _,x in ipairs(getgenv().PHUCMAX.IslandChests) do
@@ -579,26 +600,30 @@ task.spawn(function()
                 end
                 if not exists then table.insert(getgenv().PHUCMAX.IslandChests, c) end
             end
+            -- remove gone chests
+            for i = #getgenv().PHUCMAX.IslandChests,1,-1 do
+                local v = getgenv().PHUCMAX.IslandChests[i]
+                if not v or not v.Parent then
+                    table.remove(getgenv().PHUCMAX.IslandChests, i)
+                end
+            end
         end
 
-        -- If no island chests found (either there were none to begin with, or all removed), hop server
+        -- If island empty -> hop server
         if not getgenv().PHUCMAX.IslandChests or #getgenv().PHUCMAX.IslandChests == 0 then
-            -- server hop and exit loop (Teleport will move you to new server)
             pcall(function()
                 Hop()
             end)
             task.wait(SERVER_HOP_DELAY)
-            -- stop running locally; after teleport the new instance will run script anew
             getgenv().PHUCMAX.Running = false
             break
         end
 
-        -- iterate through island chests and try to pick them
+        -- iterate chests
         for i = 1, #getgenv().PHUCMAX.IslandChests do
             if not getgenv().PHUCMAX.Running then break end
             local c = getgenv().PHUCMAX.IslandChests[i]
             if not c or not c.Parent then
-                -- remove invalid entry
                 RemoveChestFromList(getgenv().PHUCMAX.IslandChests, c)
                 continue
             end
@@ -608,42 +633,36 @@ task.spawn(function()
 
             local picked = false
             local ok, err = pcall(function()
-                -- If chest is far (> TELEPORT_DISTANCE) teleport straight to it first (user requested)
+                -- compute distance
                 local dist = 9e9
                 pcall(function() dist = (HRP.Position - c.Position).Magnitude end)
-                if dist > TELEPORT_DISTANCE then
+
+                -- If we are already very near, snap-tele into chest to guarantee pickup
+                if dist <= TELEPORT_NEAR_DISTANCE then
                     TeleportToChest(c)
-                    -- quick wait and check money
-                    task.wait(0.08)
-                    if GetMoneyValue() > 0 then -- cheap safeguard, but we check deltas below more robustly
-                        -- nothing special; we still validate via MoveAndPickupChest fallback
+                    task.wait(0.06)
+                    -- try pickup detection after snap
+                    if GetMoneyValue() > 0 then
+                        -- continue to MoveAndPickupChest to be safe (it will see delta)
                     end
-                    -- check immediate pickup by comparing money before/after teleport
-                    -- rather than rely on a stored startMoney here, we'll call MoveAndPickupChest as fallback
                 end
 
-                -- Attempt MoveAndPickupChest as primary (works for close and also after teleport)
+                -- Attempt MoveAndPickupChest (MoveAndPickupChest itself will snap-tele if we approach within TELEPORT_NEAR_DISTANCE)
                 picked = MoveAndPickupChest(c)
             end)
-            -- If pcall failed, ensure picked is false
             if not ok then picked = false end
 
-            -- If picked, remove from island list
             if picked then
                 RemoveChestFromList(getgenv().PHUCMAX.IslandChests, c)
-                -- small pause between pickups to avoid overeager looping
                 task.wait(0.12)
             else
-                -- If not picked, still remove invalid chest if its parent gone
                 if not c.Parent then
                     RemoveChestFromList(getgenv().PHUCMAX.IslandChests, c)
                 else
-                    -- If not picked after attempt, try a short wait and continue (to allow server registers)
                     task.wait(0.06)
                 end
             end
 
-            -- short break to allow other updates
             task.wait(0.05)
         end
     end
