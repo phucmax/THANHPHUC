@@ -6,8 +6,8 @@ repeat task.wait() until game:IsLoaded() and game.Players.LocalPlayer:FindFirstC
 
 -- =================== CONFIG ===================
 local UI_BG_IMAGE = "rbxassetid://89799706653949"
-local BTN_BG_IMAGE = "rbxassetid://89799706653949"
-local TOGGLE_IMAGE = "rbxassetid://89799706653949"
+local BTN_BG_IMAGE = "rbxassetid://138311826892324"
+local TOGGLE_IMAGE = "rbxassetid://138094680927347"
 local THEME_COLOR = Color3.fromRGB(140, 0, 255)
 local TweenSpeed = 350
 
@@ -246,7 +246,7 @@ end
 
 ApplyFPSBoost()
 spawn(function()
-    while task.wait(60) do
+    while task.wait(300) do
         pcall(ApplyFPSBoost)
     end
 end)
@@ -368,7 +368,7 @@ function SmartServerHop()
         if #servers > 0 then
             TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1,#servers)], Player)
         else
-            task.wait(30)
+            task.wait(3)
             SmartServerHop()
         end
     end)
@@ -493,7 +493,7 @@ function AutoChestCollect()
                 if tick() - _G.LastChestCollectedTime > 60 then
                     -- hop server if idle long
                     pcall(HopServer)
-                    task.wait(5)
+                    task.wait(1)
                 end
             end
         end
@@ -576,7 +576,7 @@ end)
 
 -- Ensure ChestFarmingRunning kept alive
 spawn(function()
-    while task.wait(10) do
+    while task.wait(1) do
         if _G.AutoCollectChest and not _G.ChestFarmingRunning then
             pcall(AutoChestCollect)
         end
@@ -587,7 +587,7 @@ end)
 pcall(function()
     game:GetService("StarterGui"):SetCore("SendNotification", {
         Title = "PHUCMAX",
-        Text = "Chest-only script loaded. Cyborg/boss logic removed.",
+        Text = "Thank you for using the script. .",
         Duration = 5
     })
 end)
