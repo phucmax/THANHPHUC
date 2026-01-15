@@ -59,6 +59,7 @@ Main.Position = UDim2.new(0.5,-210,0.5,-130)
 Main.BackgroundTransparency = 1
 Main.Active = true
 Main.Draggable = true
+Main.Visible = true
 
 Instance.new("UICorner", Main).CornerRadius = UDim.new(0,18)
 
@@ -95,8 +96,8 @@ Info.Position = UDim2.new(0,20,0,80)
 Info.Size = UDim2.new(1,-40,0,70)
 Info.BackgroundTransparency = 1
 Info.TextWrapped = true
-Info.TextXAlignment = Left
-Info.TextYAlignment = Top
+Info.TextXAlignment = Enum.TextXAlignment.Left
+Info.TextYAlignment = Enum.TextYAlignment.Top
 Info.Font = Enum.Font.Gotham
 Info.TextSize = 15
 Info.TextColor3 = Color3.fromRGB(220,220,220)
@@ -149,10 +150,18 @@ task.spawn(function()
     while task.wait(0.3) do
         local beli = 0
         pcall(function()
-            beli = Player.Data.Beli.Value
+            if Player and Player:FindFirstChild("Data") and Player.Data:FindFirstChild("Beli") then
+                beli = Player.Data.Beli.Value
+            end
         end)
-        local t = getgenv().PHUCMAX.Running and (tick()-getgenv().PHUCMAX.StartTime) or 0
-        Info.Text = "Money : "..beli.."\nTime : "..string.format("%02d:%02d:%02d",t/3600%24,t/60%60,t%60)
+        local t = 0
+        if getgenv().PHUCMAX.Running then
+            t = math.floor(tick() - getgenv().PHUCMAX.StartTime)
+        end
+        local hours = math.floor(t / 3600) % 24
+        local mins  = math.floor(t / 60) % 60
+        local secs  = t % 60
+        Info.Text = "Money : "..tostring(beli).."\nTime : "..string.format("%02d:%02d:%02d", hours, mins, secs)
     end
 end)
 
@@ -160,7 +169,9 @@ end)
 local function AutoTeam()
     if Player.PlayerGui:FindFirstChild("Main (minimal)") then
         repeat task.wait(1)
-            game.ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam","Marines")
+            pcall(function()
+                game.ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam","Marines")
+            end)
         until not Player.PlayerGui:FindFirstChild("Main (minimal)")
     end
 end
@@ -190,19 +201,38 @@ end
 local BodyGyro, BodyVel
 local function StartFly()
     if getgenv().PHUCMAX.Flying then return end
+    -- ensure character root exists
+    if not HRP or not HRP.Parent then
+        pcall(UpdateChar)
+        if not HRP or not HRP.Parent then return end
+    end
     getgenv().PHUCMAX.Flying = true
 
-    BodyGyro = Instance.new("BodyGyro", HRP)
+    -- cleanup any previous bindings/instances
+    pcall(function() RunService:UnbindFromRenderStep("PHUCMAX_FLY") end)
+    if BodyGyro then BodyGyro:Destroy() BodyGyro = nil end
+    if BodyVel then BodyVel:Destroy() BodyVel = nil end
+
+    BodyGyro = Instance.new("BodyGyro")
+    BodyGyro.Parent = HRP
     BodyGyro.P = 9e4
     BodyGyro.MaxTorque = Vector3.new(9e9,9e9,9e9)
 
-    BodyVel = Instance.new("BodyVelocity", HRP)
+    BodyVel = Instance.new("BodyVelocity")
+    BodyVel.Parent = HRP
     BodyVel.MaxForce = Vector3.new(9e9,9e9,9e9)
+    BodyVel.Velocity = Vector3.new(0,0,0)
 
-    RunService:BindToRenderStep("PHUCMAX_FLY", 1, function()
+    RunService:BindToRenderStep("PHUCMAX_FLY", Enum.RenderPriority.Character.Value, function()
         if not getgenv().PHUCMAX.Running then return end
-        BodyGyro.CFrame = workspace.CurrentCamera.CFrame
-        BodyVel.Velocity = workspace.CurrentCamera.CFrame.LookVector * 350
+        local cam = workspace.CurrentCamera
+        if not cam then return end
+        if BodyGyro and BodyGyro.Parent then
+            BodyGyro.CFrame = cam.CFrame
+        end
+        if BodyVel and BodyVel.Parent then
+            BodyVel.Velocity = cam.CFrame.LookVector * 350
+        end
         for _,p in pairs(Character:GetDescendants()) do
             if p:IsA("BasePart") then p.CanCollide = false end
         end
@@ -211,9 +241,9 @@ end
 
 local function StopFly()
     getgenv().PHUCMAX.Flying = false
-    RunService:UnbindFromRenderStep("PHUCMAX_FLY")
-    if BodyGyro then BodyGyro:Destroy() end
-    if BodyVel then BodyVel:Destroy() end
+    pcall(function() RunService:UnbindFromRenderStep("PHUCMAX_FLY") end)
+    if BodyGyro then BodyGyro:Destroy() BodyGyro = nil end
+    if BodyVel then BodyVel:Destroy() BodyVel = nil end
 end
 
 -- ================= CHEST =================
@@ -222,6 +252,9 @@ local function GetChests()
     for _,v in pairs(Workspace:GetDescendants()) do
         if v:IsA("BasePart") and v.Name:lower():find("chest") then
             table.insert(t,v)
+        elseif v:IsA("Model") and v.Name:lower():find("chest") then
+            local part = v.PrimaryPart or v:FindFirstChildWhichIsA("BasePart")
+            if part then table.insert(t, part) end
         end
     end
     return t
@@ -230,13 +263,18 @@ end
 -- ================= SERVER HOP =================
 local Visited = {}
 local function Hop()
-    local servers = HttpService:JSONDecode(game:HttpGet(
-        "https://games.roblox.com/v1/games/"..game.PlaceId.."/servers/Public?limit=100"
-    ))
+    local ok, res = pcall(function()
+        return game:HttpGet("https://games.roblox.com/v1/games/"..tostring(game.PlaceId).."/servers/Public?limit=100")
+    end)
+    if not ok or not res then return end
+    local ok2, servers = pcall(function() return HttpService:JSONDecode(res) end)
+    if not ok2 or type(servers) ~= "table" or not servers.data then return end
     for _,v in pairs(servers.data) do
-        if not Visited[v.id] and v.playing < v.maxPlayers then
+        if type(v) == "table" and v.id and not Visited[v.id] and v.playing < (v.maxPlayers or math.huge) then
             Visited[v.id] = true
-            TeleportService:TeleportToPlaceInstance(game.PlaceId,v.id,Player)
+            pcall(function()
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, Player)
+            end)
             break
         end
     end
@@ -256,8 +294,10 @@ task.spawn(function()
                 for _,c in pairs(chests) do
                     if not getgenv().PHUCMAX.Running then break end
                     UpdateChar()
-                    HRP.CFrame = c.CFrame + Vector3.new(0,6,0)
-                    task.wait(0.25)
+                    if HRP and c and c:IsA("BasePart") then
+                        HRP.CFrame = c.CFrame + Vector3.new(0,6,0)
+                        task.wait(0.25)
+                    end
                 end
             else
                 StopFly()
