@@ -1,4 +1,3 @@
-``` name=flyv2.lua
 --==============================
 -- PHUCMAX | COMPACT FLY LOCATION UI (fixed)
 -- - Smaller UI, unique name so it doesn't conflict with script.lua
@@ -156,6 +155,7 @@ local bv, conn
 local noclipConn, humanoidDiedConn
 
 local SPEED = 500
+local lastDeath = 0 -- timestamp of last death
 
 local function SetNoclip(on)
     if not char then return end
@@ -193,15 +193,27 @@ local function cleanupFlight()
     end
     SetNoclip(false)
     stopMaintainNoclip()
-    btnFly.Text = "FLY"
+    if btnFly then btnFly.Text = "FLY" end
 end
 
 local function onHumanoidDied()
+    -- record death time
+    lastDeath = tick()
     -- stop everything safely on death
     cleanupFlight()
     -- Ensure label updated and no invalid hrp usage
     hrp = nil
     humanoid = nil
+end
+
+local function removePhysicsArtifacts(fromChar)
+    -- Remove leftover BodyVelocity, BodyPosition, BodyGyro in the new character to avoid carried forces
+    if not fromChar then return end
+    for _, v in ipairs(fromChar:GetDescendants()) do
+        if v:IsA("BodyVelocity") or v:IsA("BodyPosition") or v:IsA("BodyGyro") then
+            pcall(function() v:Destroy() end)
+        end
+    end
 end
 
 local function loadChar(c)
@@ -216,9 +228,13 @@ local function loadChar(c)
         return
     end
 
+    -- proactively remove any physics artifacts on the incoming character
+    removePhysicsArtifacts(char)
+
     hrp = char:FindFirstChild("HumanoidRootPart") or char:WaitForChild("HumanoidRootPart")
     humanoid = char:FindFirstChild("Humanoid") or char:WaitForChild("Humanoid")
     cleanupFlight() -- ensure no leftover flight state when respawning
+
     -- attach death listener
     humanoidDiedConn = humanoid.Died:Connect(onHumanoidDied)
 end
@@ -249,6 +265,15 @@ UpdateLabel()
 -- FLY LOGIC (robust)
 -------------------------------
 local function FlyTo(pos)
+    -- safety: prevent immediate flying right after death/respawn (avoid race with engine)
+    if tick() - lastDeath < 1.0 then
+        if btnFly then
+            btnFly.Text = "WAIT"
+            task.delay(1.0, function() if not flying and btnFly then btnFly.Text = "FLY" end end)
+        end
+        return
+    end
+
     -- safety checks
     if flying then return end
     if not hrp or not hrp.Parent then
@@ -258,13 +283,27 @@ local function FlyTo(pos)
         end
     end
     if not hrp then
-        btnFly.Text = "NO CHAR"
-        task.delay(1, function() if not flying then btnFly.Text = "FLY" end end)
+        if btnFly then
+            btnFly.Text = "NO CHAR"
+            task.delay(1, function() if not flying and btnFly then btnFly.Text = "FLY" end end)
+        end
         return
     end
 
+    -- ensure no leftover bv attached anywhere
+    if bv then
+        pcall(function() bv:Destroy() end)
+        bv = nil
+    end
+    -- also remove any physics artifacts from hrp just in case
+    for _, v in ipairs(hrp:GetChildren()) do
+        if v:IsA("BodyVelocity") or v:IsA("BodyPosition") or v:IsA("BodyGyro") then
+            pcall(function() v:Destroy() end)
+        end
+    end
+
     flying = true
-    btnFly.Text = "FLYING..."
+    if btnFly then btnFly.Text = "FLYING..." end
     -- enable noclip and maintain it every frame
     SetNoclip(true)
     startMaintainNoclip()
@@ -300,7 +339,9 @@ local function FlyTo(pos)
                 if connLocal then connLocal:Disconnect() connLocal = nil end
                 -- place player exactly at target (small Y offset to avoid embedding in ground)
                 pcall(function()
-                    hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
+                    if hrp and hrp.Parent then
+                        hrp.CFrame = CFrame.new(pos + Vector3.new(0, 2, 0))
+                    end
                 end)
                 cleanupFlight()
             end
@@ -348,4 +389,3 @@ gui.AncestryChanged:Connect(function()
         cleanupFlight()
     end
 end)
-```
