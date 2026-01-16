@@ -7,8 +7,8 @@
 --======================
 -- SETTINGS
 --======================
-local UI_BG_IMAGE_ID = "rbxassetid://89799706653949"
-local TOGGLE_BG_IMAGE_ID = "rbxassetid://89799706653949"
+local UI_BG_IMAGE_ID = "rbxassetid://87426437139035"
+local TOGGLE_BG_IMAGE_ID = "rbxassetid://138311826892324"
 
 local FLY_HEIGHT = 8
 local FLY_SPEED = 150
@@ -506,4 +506,5 @@ if humanoid then
 		setBtnOn(autoBtn, false)
 		autoBtn.Text = "Auto Collect : OFF"
 	end)
+
 end
