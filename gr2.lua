@@ -373,7 +373,7 @@ RunService.RenderStepped:Connect(function(dt)
     hue = (hue + 0.006) % 1
     UIStroke.Color = ColorFromHue(hue)
 
-    local plainText = "phucmax"  
+    local plainText = "X Nhau"  
     local newText = ""  
     textHueOffset = (textHueOffset + 0.012) % 1  
     for i = 1, #plainText do  
