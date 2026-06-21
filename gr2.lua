@@ -3,7 +3,7 @@
 local Fluent, SaveManager, InterfaceManager = loadstring(Game:HttpGet("https://raw.githubusercontent.com/discoart/FluentPlus/refs/heads/main/Beta.lua"))()
 
 local Window = Fluent:CreateWindow({
-    Title = "XNhau",
+    Title = "X Nhau",
     SubTitle = "Grow a Garden 2 ",
     Size = UDim2.fromOffset(480, 380),
     Acrylic = true,
@@ -20,8 +20,9 @@ local InfoTab = Window:AddTab({ Title = "Thong Tin", Icon = "" })
 local MainTab = Window:AddTab({ Title = "Chinh", Icon = "" })
 local PetTab = Window:AddTab({ Title = "Thu Cuong", Icon = "" })
 local ShopTab = Window:AddTab({ Title = "Cua Hang", Icon = "" })
-local SettingTab = Window:AddTab({ Title = "Cai Dat", Icon = "" })
 local LagTab = Window:AddTab({ Title = "Giam Lag", Icon = "" })
+local SettingTab = Window:AddTab({ Title = "Cai Dat", Icon = "" })
+
 
 
 
@@ -238,8 +239,7 @@ local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 local TweenService = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
-local RunService = game:GetService("RunService")
-local VirtualInputManager = game:GetService("VirtualInputManager")
+local CoreGui = game:GetService("CoreGui")
 
 local existingGui = playerGui:FindFirstChild("CustomScreenGui")
 if existingGui then
@@ -249,17 +249,17 @@ end
 local ScreenGui = Instance.new("ScreenGui")
 ScreenGui.Name = "CustomScreenGui"
 ScreenGui.Parent = playerGui
-ScreenGui.IgnoreGuiInset = true -- Để kéo thả mượt không bị khựng góc trên màn hình
+ScreenGui.IgnoreGuiInset = true 
 
 -- ============================================================
 -- 1. KHUNG CHỨA BÓNG ĐỔ (GLOW SHADOW CONTAINER)
 -- ============================================================
 local ShadowContainer = Instance.new("ImageLabel")
 ShadowContainer.Name = "ShadowContainer"
-ShadowContainer.Size = UDim2.new(0, 160, 0, 70) -- Kích thước bao gồm cả vùng bóng mờ
-ShadowContainer.Position = UDim2.new(0.5, -80, 0, 20) -- Vị trí mặc định ở trên cùng giữa màn hình
+ShadowContainer.Size = UDim2.new(0, 160, 0, 70) 
+ShadowContainer.Position = UDim2.new(0.5, -80, 0.1, 0) -- Đặt dịch xuống tí cho dễ nhìn trên Mobile
 ShadowContainer.BackgroundTransparency = 1
-ShadowContainer.Image = "rbxassetid://6015897843" -- ID Shadow phát sáng màu xanh mềm mịn
+ShadowContainer.Image = "rbxassetid://6015897843" 
 ShadowContainer.ImageColor3 = Color3.fromRGB(0, 110, 255)
 ShadowContainer.ImageTransparency = 0.3
 ShadowContainer.ScaleType = Enum.ScaleType.Slice
@@ -267,43 +267,40 @@ ShadowContainer.SliceCenter = Rect.new(49, 49, 450, 450)
 ShadowContainer.Parent = ScreenGui
 
 -- ============================================================
--- 2. NÚT CHÍNH (MAIN IMAGE BUTTON - MÀU XANH DƯƠNG GLOSSY 3D)
+-- 2. NÚT CHÍNH (MÀU XANH DƯƠNG GLOSSY ĐẬM THEO ẢNH MẪU "DOWNLOAD")
 -- ============================================================
 local Button = Instance.new("ImageButton")
 Button.Name = "CustomButton"
 Button.Size = UDim2.new(0, 130, 0, 40)
-Button.Position = UDim2.new(0.5, -65, 0.5, -20) -- Căn giữa trong hộp bóng đổ
+Button.Position = UDim2.new(0.5, -65, 0.5, -20) 
 Button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
 Button.BorderSizePixel = 0
-Button.AutoButtonColor = false -- Tắt đổi màu mặc định của Roblox để xài Animation tự làm
+Button.AutoButtonColor = false 
 Button.Parent = ShadowContainer
 
--- Bo tròn góc dạng Capsule (Thành hình viên thuốc giống ảnh mẫu)
 local UICorner = Instance.new("UICorner")
 UICorner.CornerRadius = UDim.new(0, 20)
 UICorner.Parent = Button
 
--- Tạo dải màu Gradient Xanh Dương 3D (Đậm ở dưới, sáng ở trên)
+-- Gradient Xanh Dương Cao Cấp giống nút "DOWNLOAD" trong ảnh mẫu của mày
 local MainGradient = Instance.new("UIGradient")
 MainGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 150, 255)), -- Sáng ở trên cùng
-    ColorSequenceKeypoint.new(0.4, Color3.fromRGB(0, 100, 245)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 50, 180))  -- Đậm ở dưới đáy tạo khối 3D
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 35, 140)),   -- Xanh dương sáng ở đỉnh lớp khối
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 20, 95)),  
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 5, 50))     -- Xanh đen đậm ở đáy nút tạo độ sâu 3D cực mạnh
 })
 MainGradient.Rotation = 90
 MainGradient.Parent = Button
 
--- ============================================================
--- 3. ĐƯỜNG VIỀN SÁNG CHẠY VÒNG (UI STROKE RGB)
--- ============================================================
 local UIStroke = Instance.new("UIStroke")
 UIStroke.Parent = Button
-UIStroke.Thickness = 2.5
+UIStroke.Thickness = 2
 UIStroke.LineJoinMode = Enum.LineJoinMode.Round
-UIStroke.Transparency = 0.1
+UIStroke.Color = Color3.fromRGB(0, 90, 255)
+UIStroke.Transparency = 0.3
 
 -- ============================================================
--- 4. HIỆU ỨNG PHẢN CHIẾU ÁNH SÁNG (GLOSSY OVERLAY)
+-- 3. HIỆU ỨNG PHẢN CHIẾU ÁNH SÁNG TRÊN ĐỈNH (GLOSSY CAP)
 -- ============================================================
 local GlossFrame = Instance.new("Frame")
 GlossFrame.Name = "GlossFrame"
@@ -323,78 +320,106 @@ GlossGradient.Color = ColorSequence.new({
     ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
 })
 GlossGradient.Transparency = NumberSequence.new({
-    NumberSequenceKeypoint.new(0, 0.25), -- Vệt bóng sáng trắng trên đỉnh nút
-    NumberSequenceKeypoint.new(1, 0.95)  -- Mờ dần xuống giữa
+    NumberSequenceKeypoint.new(0, 0.2), 
+    NumberSequenceKeypoint.new(1, 0.95) 
 })
 GlossGradient.Rotation = 90
 GlossGradient.Parent = GlossFrame
 
 -- ============================================================
--- 5. CHỮ PHUCMAX ĐỔI MÀU CẦU VỒNG (TEXT LABEL)
+-- 4. CHỮ "XNhau" THIẾT KẾ ĐÚNG MÀU LOGO WEB XNHAU.LA
 -- ============================================================
 local TextLabel = Instance.new("TextLabel")
 TextLabel.Parent = Button
-TextLabel.Size = UDim2.new(1, 0, 1, -2)
+TextLabel.Size = UDim2.new(1, 0, 1, 0)
 TextLabel.BackgroundTransparency = 1
-TextLabel.Text = "X Nhau"
+-- Định dạng HTML RichText: Chữ X màu Cam-Vàng, Chữ Nhau Gradient tuyến tính
+TextLabel.Text = '<font color="rgb(255,145,0)">X</font><font color="rgb(200,100,255)">N</font><font color="rgb(220,120,255)">h</font><font color="rgb(240,140,255)">a</font><font color="rgb(255,160,255)">u</font>'
 TextLabel.Font = Enum.Font.GothamBold
-TextLabel.TextSize = 18
-TextLabel.TextStrokeTransparency = 0.7
-TextLabel.TextStrokeColor3 = Color3.fromRGB(0, 30, 100)
+TextLabel.TextSize = 20
 TextLabel.TextWrapped = false
 TextLabel.TextXAlignment = Enum.TextXAlignment.Center
 TextLabel.TextYAlignment = Enum.TextYAlignment.Center
 TextLabel.RichText = true
-TextLabel.ZIndex = 3 -- Nổi lên trên lớp Gloss
+TextLabel.ZIndex = 3 
+
+-- Đổ bóng mờ nhẹ phía sau chữ cho ngầu
+local TextShadow = Instance.new("TextLabel")
+TextShadow.Parent = Button
+TextShadow.Size = UDim2.new(1, 0, 1, -2)
+TextShadow.Position = UDim2.new(0, 1, 0, 1)
+TextShadow.BackgroundTransparency = 1
+TextShadow.Text = "XNhau"
+TextShadow.Font = Enum.Font.GothamBold
+TextShadow.TextSize = 20
+TextShadow.TextColor3 = Color3.fromRGB(0, 0, 20)
+TextShadow.TextTransparency = 0.4
+TextShadow.ZIndex = 2
 
 -- ============================================================
--- LUỒNG LOGIC: RAINBOW FADE EFFECT FOR STROKE & TEXT
+-- 5. LOGIC BẬT TẮT CHỈ ĐỘC QUYỀN VỚI MENU FLUENT (AN TOÀN CHO MOBILE)
 -- ============================================================
-local function ColorFromHue(hue)
-    local r, g, b
-    local i = math.floor(hue * 6)
-    local f = hue * 6 - i
-    local q = 1 - f
-    i = i % 6
-    if i == 0 then r, g, b = 1, f, 0
-    elseif i == 1 then r, g, b = q, 1, 0
-    elseif i == 2 then r, g, b = 0, 1, f
-    elseif i == 3 then r, g, b = 0, q, 1
-    elseif i == 4 then r, g, b = f, 0, 1
-    elseif i == 5 then r, g, b = 1, 0, q
+local toggled = true
+
+local function toggleFluentUI()
+    toggled = not toggled
+    
+    -- Vòng lặp quét tìm chính xác Frame Menu chính của Fluent mà không gây lỗi tắt giao diện khác
+    local targetFrame = nil
+    
+    -- Quét trong CoreGui trước (Nơi đa số các Script Executor lưu Menu Fluent)
+    for _, gui in ipairs(CoreGui:GetChildren()) do
+        if gui:IsA("ScreenGui") and gui:FindFirstChild("MainFrame") then
+            targetFrame = gui.MainFrame
+            break
+        end
     end
-    return Color3.new(r, g, b)
+    
+    -- Dự phòng nếu Executor của mày lưu Fluent trong PlayerGui
+    if not targetFrame then
+        for _, gui in ipairs(playerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and gui:FindFirstChild("MainFrame") then
+                targetFrame = gui.MainFrame
+                break
+            end
+        end
+    end
+    
+    -- Thực hiện ẩn/hiện độc lập
+    if targetFrame then
+        targetFrame.Visible = toggled
+    else
+        -- Cách cuối: Nếu ko tìm thấy bằng tên mặc định, quét theo cấu trúc UI gốc toàn thư viện Fluent
+        local fluentWindow = _G.FluentWindow or getgenv().FluentWindow
+        if fluentWindow and fluentWindow.MainFrame then
+            fluentWindow.MainFrame.Visible = toggled
+        else
+            warn("Đang tìm Menu Fluent... Hãy chắc chắn mày đã chạy Script Hack trước khi bấm nút!")
+        end
+    end
 end
 
-local hue = 0
-local textHueOffset = 0
+-- ============================================================
+-- SỰ KIỆN: CLICK CHUỘT + ANIMATION NHẤP NHÁY
+-- ============================================================
+Button.MouseButton1Click:Connect(function()
+    -- Hoạt ảnh thu nhỏ nhẹ nút khi chạm vào tạo cảm giác phản hồi thật
+    Button:TweenSize(UDim2.new(0, 118, 0, 35), "Out", "Quad", 0.08, true)
+    task.wait(0.08)
+    Button:TweenSize(UDim2.new(0, 130, 0, 40), "Out", "Quad", 0.08, true)
 
-RunService.RenderStepped:Connect(function(dt)
-    hue = (hue + 0.006) % 1
-    UIStroke.Color = ColorFromHue(hue)
-
-    local plainText = "X Nhau"  
-    local newText = ""  
-    textHueOffset = (textHueOffset + 0.012) % 1  
-    for i = 1, #plainText do  
-        local c = plainText:sub(i,i)  
-        local charHue = (textHueOffset + i * 0.08) % 1  
-        local color = ColorFromHue(charHue)  
-        newText = newText..'<font color="rgb('..math.floor(color.R*255)..','..math.floor(color.G*255)..','..math.floor(color.B*255)..')">'..c..'</font>'  
-    end  
-    TextLabel.Text = newText
+    -- Gọi luồng xử lý bật tắt an toàn
+    toggleFluentUI()
 end)
 
 -- ============================================================
--- SỰ KIỆN: KÉO THẢ MƯỢT MÀ (PC + MOBILE DRAGGING)
+-- SỰ KIỆN: KÉO THẢ DI CHUYỂN TRÊN MÀN HÌNH (PC + MOBILE)
 -- ============================================================
 local dragging, dragInput, dragStart, startPos
 
 local function update(input)
     local delta = input.Position - dragStart
     local TargetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    
-    -- Tạo độ trễ mượt (Smooth Ease Out) khi kéo thả
     TweenService:Create(ShadowContainer, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = TargetPos}):Play()
 end
 
@@ -425,32 +450,196 @@ UserInputService.InputChanged:Connect(function(input)
 end)
 
 -- ============================================================
--- SỰ KIỆN: CLICK CHUỘT + ANIMATION THU/PHÓNG SANG TRỌNG
+-- KHỞI TẠO NÚT BẤM XNHAU HOÀN CHỈNH (CÓ SỬA LỖI ĐÓNG MỞ)
 -- ============================================================
-local toggled = true
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
 
+local existingGui = playerGui:FindFirstChild("CustomScreenGui")
+if existingGui then
+    existingGui:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "CustomScreenGui"
+ScreenGui.Parent = playerGui
+ScreenGui.IgnoreGuiInset = true 
+
+-- 1. KHUNG CHỨA BÓNG ĐỔ (GLOW SHADOW CONTAINER)
+local ShadowContainer = Instance.new("ImageLabel")
+ShadowContainer.Name = "ShadowContainer"
+ShadowContainer.Size = UDim2.new(0, 160, 0, 70) 
+ShadowContainer.Position = UDim2.new(0.5, -80, 0.1, 0)
+ShadowContainer.BackgroundTransparency = 1
+ShadowContainer.Image = "rbxassetid://6015897843" 
+ShadowContainer.ImageColor3 = Color3.fromRGB(0, 110, 255)
+ShadowContainer.ImageTransparency = 0.3
+ShadowContainer.ScaleType = Enum.ScaleType.Slice
+ShadowContainer.SliceCenter = Rect.new(49, 49, 450, 450)
+ShadowContainer.Parent = ScreenGui
+
+-- 2. NÚT CHÍNH (MÀU XANH DƯƠNG GLOSSY ĐẬM 3D)
+local Button = Instance.new("ImageButton")
+Button.Name = "CustomButton"
+Button.Size = UDim2.new(0, 130, 0, 40)
+Button.Position = UDim2.new(0.5, -65, 0.5, -20) 
+Button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Button.BorderSizePixel = 0
+Button.AutoButtonColor = false 
+Button.Parent = ShadowContainer
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 20)
+UICorner.Parent = Button
+
+local MainGradient = Instance.new("UIGradient")
+MainGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 35, 140)),   
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 20, 95)),  
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 5, 50))     
+})
+MainGradient.Rotation = 90
+MainGradient.Parent = Button
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Parent = Button
+UIStroke.Thickness = 2
+UIStroke.LineJoinMode = Enum.LineJoinMode.Round
+UIStroke.Color = Color3.fromRGB(0, 90, 255)
+UIStroke.Transparency = 0.3
+
+-- 3. HIỆU ỨNG PHẢN CHIẾU ÁNH SÁNG TRÊN ĐỈNH (GLOSSY CAP)
+local GlossFrame = Instance.new("Frame")
+GlossFrame.Name = "GlossFrame"
+GlossFrame.Size = UDim2.new(1, 0, 0.45, 0)
+GlossFrame.Position = UDim2.new(0, 0, 0, 0)
+GlossFrame.BackgroundTransparency = 0
+GlossFrame.BorderSizePixel = 0
+GlossFrame.Parent = Button
+
+local GlossCorner = Instance.new("UICorner")
+GlossCorner.CornerRadius = UDim.new(0, 20)
+GlossCorner.Parent = GlossFrame
+
+local GlossGradient = Instance.new("UIGradient")
+GlossGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+})
+GlossGradient.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.2), 
+    NumberSequenceKeypoint.new(1, 0.95) 
+})
+GlossGradient.Rotation = 90
+GlossGradient.Parent = GlossFrame
+
+-- 4. CHỮ "XNhau" MÀU SẮC CHUẨN XNHAU.LA
+local TextLabel = Instance.new("TextLabel")
+TextLabel.Parent = Button
+TextLabel.Size = UDim2.new(1, 0, 1, 0)
+TextLabel.BackgroundTransparency = 1
+TextLabel.Text = '<font color="rgb(255,150,0)">X</font><font color="rgb(205,90,255)">N</font><font color="rgb(215,110,255)">h</font><font color="rgb(230,130,255)">a</font><font color="rgb(245,150,255)">u</font>'
+TextLabel.Font = Enum.Font.GothamBold
+TextLabel.TextSize = 20
+TextLabel.TextWrapped = false
+TextLabel.TextXAlignment = Enum.TextXAlignment.Center
+TextLabel.TextYAlignment = Enum.TextYAlignment.Center
+TextLabel.RichText = true
+TextLabel.ZIndex = 3 
+
+local TextShadow = Instance.new("TextLabel")
+TextShadow.Parent = Button
+TextShadow.Size = UDim2.new(1, 0, 1, -2)
+TextShadow.Position = UDim2.new(0, 1, 0, 1)
+TextShadow.BackgroundTransparency = 1
+TextShadow.Text = "XNhau"
+TextShadow.Font = Enum.Font.GothamBold
+TextShadow.TextSize = 20
+TextShadow.TextColor3 = Color3.fromRGB(0, 0, 20)
+TextShadow.TextTransparency = 0.5
+TextShadow.ZIndex = 2
+
+-- ============================================================
+-- 5. LOGIC TOGGLE THU NHỎ/MỞ RỘNG ĐỘC LẬP
+-- ============================================================
+local function toggleFluentUI()
+    local fluentWindow = getgenv().Window
+    
+    if fluentWindow and fluentWindow.Minimize then
+        pcall(function()
+            fluentWindow:Minimize() -- Gọi lệnh thu nhỏ chính thống của thư viện Fluent
+        end)
+    else
+        -- Cơ chế quét dự phòng sâu nếu môi trường sandbox chặn getgenv()
+        local found = false
+        for _, loc in ipairs({CoreGui, playerGui}) do
+            for _, scr in ipairs(loc:GetChildren()) do
+                if scr:IsA("ScreenGui") and scr:FindFirstChild("MainFrame") then
+                    local mf = scr.MainFrame
+                    -- Tìm kiếm nút Minimize thu nhỏ bằng hình ảnh ID trên thanh TopBar
+                    for _, desc in ipairs(mf:GetDescendants()) do
+                        if desc:IsA("ImageButton") and (desc.Name:lower():find("min") or desc.Image:find("10305880150")) then
+                            pcall(function() desc:Activate() end)
+                            found = true
+                            break
+                        end
+                    end
+                end
+                if found then break end
+            end
+            if found then break end
+        end
+    end
+end
+
+-- SỰ KIỆN CLICK NÚT
 Button.MouseButton1Click:Connect(function()
-    -- Animation co giãn nhẹ nút chính khi click chuột/chạm màn hình
-    Button:TweenSize(UDim2.new(0, 115, 0, 34), "Out", "Quad", 0.08, true)
+    Button:TweenSize(UDim2.new(0, 118, 0, 35), "Out", "Quad", 0.08, true)
     task.wait(0.08)
     Button:TweenSize(UDim2.new(0, 130, 0, 40), "Out", "Quad", 0.08, true)
 
-    -- LOGIC BẬT TẮT GIỮ NGUYÊN CỦA MÀY
-    if VirtualInputManager then
-        toggled = not toggled
-        task.defer(function()
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftControl, false, game)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftControl, false, game)
+    toggleFluentUI()
+end)
+
+-- SỰ KIỆN KÉO THẢ (DRAGGING)
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    local TargetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    TweenService:Create(ShadowContainer, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = TargetPos}):Play()
+end
+
+Button.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = ShadowContainer.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
         end)
-    else
-        if Window and Window.MainFrame then
-            toggled = not toggled
-            Window.MainFrame.Visible = toggled
-        else
-            warn("Không tìm thấy UI Fluent để toggle!")
-        end
     end
 end)
+
+Button.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
 
 
 -- ============================================================
@@ -546,36 +735,7 @@ task.spawn(function()
     end
 end)
 
--- ============================================================
--- 4. AUTO STEAL (LOGIC THẬT)
--- ============================================================
-task.spawn(function()
-    while true do
-        if Config.Steal and isNight() then
-            local hrp = getHRP()
-            if hrp then
-                for _, prompt in ipairs(CollectionService:GetTagged("StealPrompt")) do
-                    if not Config.Steal then break end
-                    if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                        local model = getModel(prompt)
-                        if model then
-                            local uid = tonumber(model:GetAttribute("UserId"))
-                            local pid = model:GetAttribute("PlantId")
-                            if uid and uid ~= LP.UserId and pid then
-                                hrp.CFrame = model:GetPivot() * CFrame.new(0, 3, 0)
-                                pcall(function() Networking.Steal.BeginSteal:Fire(uid, pid, "") end)
-                                task.wait(0.3)
-                                pcall(function() Networking.Steal.CompleteSteal:Fire() end)
-                                task.wait(Config.StealDelay or 0.5)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(1)
-    end
-end)
+
 
 -- ============================================================
 -- 5. AUTO SELL (LOGIC THẬT)
@@ -1013,49 +1173,114 @@ CollectSection:AddToggle("AutoCollect_1", {
 
 
 -- SECTION 3: SEEDPACK
-local SeedPackSection = MainTab:AddSection("SeedPack")
 
-SeedPackSection:AddToggle("AutoSeedPack_1", {
-    Title = "Tự động thu thập Gói Hạt Giống",
-    Default = false,
-    Callback = function(v) Config["Seed Pack"].Enable = v end
-})
-
-SeedPackSection:AddToggle("AutoGoldSeed_1", {
-    Title = "Tự động thu thập Hạt Giống Vàng",
-    Default = false,
-    Callback = function(v) Config["Seed Pack"].Gold = v end
-})
-
-SeedPackSection:AddToggle("AutoRainbowSeed_1", {
-    Title = "Tự động thu thập Hạt Giống Cầu Vồng",
-    Default = false,
-    Callback = function(v) Config["Seed Pack"].Rainbow = v end
-})
-
-SeedPackSection:AddToggle("AutoOpenSeedPack_1", {
-    Title = "Tự động mở gói hạt giống",
-    Default = false,
-    Callback = function(v) Config["Seed Pack"]["Auto Open"] = v end
-})
 
 -- ============================================================
 -- SECTION 4: AUTOMATION STEAL + TROLL PLAYERS
 -- ============================================================
 local StealSection = MainTab:AddSection(" Automation Steal")
 
+
+-- ============================================================
+-- SERVICES & UTILS
+-- ============================================================
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local CollectionService = game:GetService("CollectionService")
+local RS = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+local playerGui = LP:WaitForChild("PlayerGui")
+
+local Networking
+pcall(function() Networking = require(RS:WaitForChild("SharedModules"):WaitForChild("Networking")) end)
+
+local function getHRP()
+    local c = LP.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+local function getModel(obj)
+    while obj and obj ~= workspace do
+        if obj:IsA("Model") then return obj end
+        obj = obj.Parent
+    end
+    return nil
+end
+
+local function isNight()
+    local nightVal = RS:FindFirstChild("Night")
+    if nightVal then return nightVal.Value end
+    return game:GetService("Lighting").ClockTime < 6 or game:GetService("Lighting").ClockTime > 18
+end
+
+-- ============================================================
+-- LOGIC AUTO CƯỚP TRÁI CÂY VIP NHẤT SERVER
+-- ============================================================
+task.spawn(function()
+    while true do
+        if getgenv().Config.Steal and isNight() then
+            local hrp = getHRP()
+            if hrp then
+                for _, prompt in ipairs(CollectionService:GetTagged("StealPrompt")) do
+                    if not getgenv().Config.Steal then break end
+                    
+                    if prompt:IsA("ProximityPrompt") and prompt.Enabled then
+                        local model = getModel(prompt)
+                        if model then
+                            local uid = tonumber(model:GetAttribute("UserId"))
+                            local pid = model:GetAttribute("PlantId")
+                            
+                            -- Kiểm tra nếu cây không phải của mình
+                            if uid and uid ~= LP.UserId and pid then
+                                local mName = model.Name:lower()
+                                local rarity = model:GetAttribute("Rarity") and tostring(model:GetAttribute("Rarity")):lower() or ""
+                                
+                                -- BỘ LỌC VIP: Chỉ cướp trái Vàng, Cầu Vồng, Kim Cương, Thần Thoại...
+                                if mName:find("gold") or mName:find("rainbow") or mName:find("diamond") or mName:find("mythic") or mName:find("premium") or mName:find("vip") or
+                                   rarity:find("gold") or rarity:find("rainbow") or rarity:find("mythic") or rarity:find("legendary") then
+                                    
+                                    hrp.CFrame = model:GetPivot() * CFrame.new(0, 3, 0)
+                                    
+                                    pcall(function() 
+                                        if Networking and Networking.Steal then
+                                            Networking.Steal.BeginSteal:Fire(uid, pid, "") 
+                                        end
+                                    end)
+                                    
+                                    task.wait(0.3)
+                                    
+                                    pcall(function() 
+                                        if Networking and Networking.Steal then
+                                            Networking.Steal.CompleteSteal:Fire() 
+                                        end
+                                    end)
+                                    
+                                    task.wait(getgenv().Config.StealDelay or 0.5)
+                                end
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.5) -- Đẩy tốc độ quét lên 0.5 giây một lần cho nhanh nhạy
+    end
+end)
+
 StealSection:AddSlider("StealDelay_1", {
     Title = "Steal Delay",
     Description = "Độ trễ giữa các lần trộm (giây)",
     Min = 0.1, Max = 5, Default = 0.5, Rounding = 1,
-    Callback = function(v) Config.StealDelay = v end
+    Callback = function(v) getgenv().Config.StealDelay = v end
 })
 
 StealSection:AddToggle("AutoSteal_1", {
-    Title = " Auto Steal Fruit",
-    Description = "Tự động trộm trái cây (ban đêm)",
+    Title = " Auto Steal Fruit VIP",
+    Description = "Chỉ tự động trộm trái cây VIP cao cấp nhất (ban đêm)",
     Default = false,
-    Callback = function(v) Config.Steal = v end
+    Callback = function(v) getgenv().Config.Steal = v end
 })
 
 -- ============================================================
@@ -1187,7 +1412,286 @@ Players.PlayerAdded:Connect(function(player)
     end)
 end)
 
+-- ============================================================
+-- CONFIG GLOBAL
+-- ============================================================
+getgenv().Config = {
+    FlySpeed = 360, -- Tốc độ bay mượt lách Anticheat
+    SeedPack = {
+        Enable = false,   -- Gom Gói Hạt Giống thường
+        Gold = false,     -- Gom Hạt Giống Vàng
+        Rainbow = false,  -- Gom Hạt Giống Cầu Vồng
+        AutoOpen = false  -- Tự động mở gói
+    }
+}
 
+-- ============================================================
+-- SERVICES
+-- ============================================================
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local RS = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Networking
+pcall(function() Networking = require(RS:WaitForChild("SharedModules"):WaitForChild("Networking")) end)
+
+-- ============================================================
+-- UTILITY FUNCTIONS
+-- ============================================================
+local function getHRP()
+    local c = LP.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+-- Hàm tính toán thời gian dựa trên khoảng cách để bay chuẩn vận tốc 360
+local function flyTo(targetCFrame)
+    local hrp = getHRP()
+    if not hrp then return false end
+    
+    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+    if distance < 3 then return true end -- Đã ở sát cạnh thì không cần bay
+    
+    local duration = distance / getgenv().Config.FlySpeed
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
+    
+    -- Triệt tiêu lực đẩy quán tính cũ để không bị lệch hướng bay
+    hrp.Velocity = Vector3.new(0, 0, 0)
+    
+    tween:Play()
+    tween.Completed:Wait() -- Chờ bay chạm đích hoàn toàn mới chạy lệnh tiếp theo
+    hrp.Velocity = Vector3.new(0, 0, 0)
+    return true
+end
+
+-- Hàm giả lập hành động nhấn và giữ phím tương tác
+local function activePrompt(prompt)
+    if fireproximityprompt then
+        fireproximityprompt(prompt)
+    else
+        prompt:InputBegan(Enum.UserInputType.MouseButton1)
+        task.wait(prompt.HoldDuration)
+        prompt:InputEnded(Enum.UserInputType.MouseButton1)
+    end
+end
+
+-- ============================================================
+-- MAIN LOOP: TỰ ĐỘNG QUÉT VÀ HÚT HẠT GIỐNG KHI ĐẾN SỰ KIỆN
+-- ============================================================
+task.spawn(function()
+    while true do
+        local sc = getgenv().Config.SeedPack
+        
+        -- Chỉ chạy khi mày bật ít nhất 1 chế độ nhặt
+        if sc.Enable or sc.Gold or sc.Rainbow then
+            local hrp = getHRP()
+            if hrp then
+                local targetItem = nil
+                
+                -- Quét liên tục môi trường workspace để tìm túi hạt giống rơi
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") and obj.Enabled then
+                        local pName = obj.Parent and obj.Parent.Name:lower() or ""
+                        
+                        -- Phân loại mục tiêu dựa theo thiết lập nút của mày trên UI
+                        if sc.Enable and (pName:find("seedpack") or pName:find("seed pack") or pName:find("pack")) then
+                            targetItem = obj
+                            break
+                        elseif sc.Gold and (pName:find("gold") or pName:find("vang")) then
+                            targetItem = obj
+                            break
+                        elseif sc.Rainbow and (pName:find("rainbow") or pName:find("cau vong") or pName:find("premium")) then
+                            targetItem = obj
+                            break
+                        end
+                    end
+                end
+                
+                -- Nếu phát hiện ra hạt giống của Event, lập tức bay qua hút
+                if targetItem and targetItem.Parent then
+                    local itemPos = targetItem.Parent:GetPivot().Position
+                    
+                    -- Bay đến sát vật phẩm (cách 0.5 stud trên trục đứng)
+                    local reached = flyTo(CFrame.new(itemPos + Vector3.new(0, 0.5, 0)))
+                    
+                    if reached and targetItem.Enabled then
+                        hrp.Anchored = true -- Khóa trục tạm thời để quá trình giữ phím nhặt không bị lệch
+                        activePrompt(targetItem)
+                        task.wait(0.12)
+                        hrp.Anchored = false
+                    end
+                end
+            end
+        end
+        
+        -- Logic tự động gửi gói tin khui mở hạt giống ngầm từ xa
+        if sc.AutoOpen then
+            pcall(function()
+                if Networking and Networking.Seeds and Networking.Seeds.OpenPack then
+                    Networking.Seeds.OpenPack:FireServer()
+                end
+            end)
+        end
+        
+        task.wait(0.15) -- Tốc độ quét 0.15 giây cực nhạy, ra quả nào hút quả đó lập tức
+    end
+end)
+
+-- ============================================================
+-- CONFIG GLOBAL
+-- ============================================================
+getgenv().Config = {
+    FlySpeed = 360, -- Tốc độ bay mượt lách Anticheat
+    SeedPack = {
+        Enable = false,   -- Gom Gói Hạt Giống thường
+        Gold = false,     -- Gom Hạt Giống Vàng
+        Rainbow = false,  -- Gom Hạt Giống Cầu Vồng
+        AutoOpen = false  -- Tự động mở gói
+    }
+}
+
+-- ============================================================
+-- SERVICES
+-- ============================================================
+local Players = game:GetService("Players")
+local LP = Players.LocalPlayer
+local RS = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+
+local Networking
+pcall(function() Networking = require(RS:WaitForChild("SharedModules"):WaitForChild("Networking")) end)
+
+-- ============================================================
+-- UTILITY FUNCTIONS
+-- ============================================================
+local function getHRP()
+    local c = LP.Character
+    return c and c:FindFirstChild("HumanoidRootPart")
+end
+
+-- Hàm tính toán thời gian dựa trên khoảng cách để bay chuẩn vận tốc 360
+local function flyTo(targetCFrame)
+    local hrp = getHRP()
+    if not hrp then return false end
+    
+    local distance = (hrp.Position - targetCFrame.Position).Magnitude
+    if distance < 3 then return true end -- Đã ở sát cạnh thì không cần bay
+    
+    local duration = distance / getgenv().Config.FlySpeed
+    local tweenInfo = TweenInfo.new(duration, Enum.EasingStyle.Linear, Enum.EasingDirection.Out)
+    local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
+    
+    -- Triệt tiêu lực đẩy quán tính cũ để không bị lệch hướng bay
+    hrp.Velocity = Vector3.new(0, 0, 0)
+    
+    tween:Play()
+    tween.Completed:Wait() -- Chờ bay chạm đích hoàn toàn mới chạy lệnh tiếp theo
+    hrp.Velocity = Vector3.new(0, 0, 0)
+    return true
+end
+
+-- Hàm giả lập hành động nhấn và giữ phím tương tác
+local function activePrompt(prompt)
+    if fireproximityprompt then
+        fireproximityprompt(prompt)
+    else
+        prompt:InputBegan(Enum.UserInputType.MouseButton1)
+        task.wait(prompt.HoldDuration)
+        prompt:InputEnded(Enum.UserInputType.MouseButton1)
+    end
+end
+
+-- ============================================================
+-- MAIN LOOP: TỰ ĐỘNG QUÉT VÀ HÚT HẠT GIỐNG KHI ĐẾN SỰ KIỆN
+-- ============================================================
+task.spawn(function()
+    while true do
+        local sc = getgenv().Config.SeedPack
+        
+        -- Chỉ chạy khi mày bật ít nhất 1 chế độ nhặt
+        if sc.Enable or sc.Gold or sc.Rainbow then
+            local hrp = getHRP()
+            if hrp then
+                local targetItem = nil
+                
+                -- Quét liên tục môi trường workspace để tìm túi hạt giống rơi
+                for _, obj in ipairs(workspace:GetDescendants()) do
+                    if obj:IsA("ProximityPrompt") and obj.Enabled then
+                        local pName = obj.Parent and obj.Parent.Name:lower() or ""
+                        
+                        -- Phân loại mục tiêu dựa theo thiết lập nút của mày trên UI
+                        if sc.Enable and (pName:find("seedpack") or pName:find("seed pack") or pName:find("pack")) then
+                            targetItem = obj
+                            break
+                        elseif sc.Gold and (pName:find("gold") or pName:find("vang")) then
+                            targetItem = obj
+                            break
+                        elseif sc.Rainbow and (pName:find("rainbow") or pName:find("cau vong") or pName:find("premium")) then
+                            targetItem = obj
+                            break
+                        end
+                    end
+                end
+                
+                -- Nếu phát hiện ra hạt giống của Event, lập tức bay qua hút
+                if targetItem and targetItem.Parent then
+                    local itemPos = targetItem.Parent:GetPivot().Position
+                    
+                    -- Bay đến sát vật phẩm (cách 0.5 stud trên trục đứng)
+                    local reached = flyTo(CFrame.new(itemPos + Vector3.new(0, 0.5, 0)))
+                    
+                    if reached and targetItem.Enabled then
+                        hrp.Anchored = true -- Khóa trục tạm thời để quá trình giữ phím nhặt không bị lệch
+                        activePrompt(targetItem)
+                        task.wait(0.12)
+                        hrp.Anchored = false
+                    end
+                end
+            end
+        end
+        
+        -- Logic tự động gửi gói tin khui mở hạt giống ngầm từ xa
+        if sc.AutoOpen then
+            pcall(function()
+                if Networking and Networking.Seeds and Networking.Seeds.OpenPack then
+                    Networking.Seeds.OpenPack:FireServer()
+                end
+            end)
+        end
+        
+        task.wait(0.15) -- Tốc độ quét 0.15 giây cực nhạy, ra quả nào hút quả đó lập tức
+    end
+end)
+
+-- ============================================================
+-- UI SETUP VIA FLUENT
+-- ============================================================
+local SeedPackSection = MainTab:AddSection("Sự Kiện ")
+
+SeedPackSection:AddToggle("AutoSeedPack_1", {
+    Title = "Tự động thu thập Gói Hạt Giống",
+    Default = false,
+    Callback = function(v) getgenv().Config.SeedPack.Enable = v end
+})
+
+SeedPackSection:AddToggle("AutoGoldSeed_1", {
+    Title = "Tự động thu thập Hạt Giống Vàng",
+    Default = false,
+    Callback = function(v) getgenv().Config.SeedPack.Gold = v end
+})
+
+SeedPackSection:AddToggle("AutoRainbowSeed_1", {
+    Title = "Tự động thu thập Hạt Giống Cầu Vồng",
+    Default = false,
+    Callback = function(v) getgenv().Config.SeedPack.Rainbow = v end
+})
+
+SeedPackSection:AddToggle("AutoOpenSeedPack_1", {
+    Title = "Tự động mở gói hạt giống",
+    Default = false,
+    Callback = function(v) getgenv().Config.SeedPack.AutoOpen = v end
+})
 
 -- SECTION 5: AUTOMATION SELL
 local SellSection = MainTab:AddSection("Automation Sell")
@@ -1781,426 +2285,103 @@ ThemeSection:AddButton({
 })
 
 -- ============================================================
--- TAB GIẢM LAG - 6 CẤP ĐỘ
+-- HÀM XỬ LÝ FIX LAG 6 CẤP ĐỘ THEO TURBOLITE
 -- ============================================================
-
-
-
--- ============================================================
--- CONFIG GIẢM LAG
--- ============================================================
-local LagLevel = 0
-local OriginalSettings = {}
-
--- ============================================================
--- HÀM LƯU CÀI ĐẶT GỐC
--- ============================================================
-local function saveOriginalSettings()
-    OriginalSettings = {
-        Brightness = Lighting.Brightness,
-        GlobalShadows = Lighting.GlobalShadows,
-        FogEnd = Lighting.FogEnd,
-        FogStart = Lighting.FogStart,
-        MaterialColors = {},
-        Textures = {}
-    }
-end
-
--- ============================================================
--- HÀM KHÔI PHỤC CÀI ĐẶT GỐC
--- ============================================================
-local function restoreSettings()
-    if OriginalSettings.Brightness then
-        Lighting.Brightness = OriginalSettings.Brightness
-    end
-    if OriginalSettings.GlobalShadows ~= nil then
-        Lighting.GlobalShadows = OriginalSettings.GlobalShadows
-    end
-    if OriginalSettings.FogEnd then
-        Lighting.FogEnd = OriginalSettings.FogEnd
-    end
-    if OriginalSettings.FogStart then
-        Lighting.FogStart = OriginalSettings.FogStart
-    end
-end
-
--- ============================================================
--- HÀM ÁP DỤNG GIẢM LAG THEO CẤP
--- ============================================================
-local function applyLagLevel(level)
-    local Lighting = game:GetService("Lighting")
-    local Terrain = workspace:FindFirstChildOfClass("Terrain")
-    
-    -- Lưu cài đặt gốc lần đầu
-    if level == 1 and not OriginalSettings.Brightness then
-        saveOriginalSettings()
+local function ApplyFixLag(level)
+    if level >= 1 then -- CẤP 1: Tắt hiệu ứng Lighting cơ bản
+        Lighting.GlobalShadows = false
+        for _, effect in ipairs(Lighting:GetChildren()) do
+            if effect:IsA("BloomEffect") or effect:IsA("BlurEffect") or effect:IsA("SunRaysEffect") then
+                effect.Enabled = false
+            end
+        end
     end
     
-    if level == 0 then
-        -- Khôi phục hoàn toàn
-        restoreSettings()
+    if level >= 2 then -- CẤP 2: Hạ cấu hình Nước & Địa hình
         if Terrain then
-            Terrain.MaterialColors = OriginalSettings.MaterialColors or {}
+            Terrain.WaterWaveSize = 0
+            Terrain.WaterWaveSpeed = 0
+            Terrain.WaterReflectance = 0
+            Terrain.WaterTransparency = 0
         end
-        -- Hiện lại tất cả vật thể
+        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+    end
+    
+    if level >= 3 then -- CẤP 3: Tắt các hạt hiệu ứng (Khói, lửa, lấp lánh của cây)
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Transparency == 1 then
-                obj.Transparency = 0
-            end
-        end
-        Fluent:Notify({ Title = "Giam Lag", Content = "Da tat giam lag!", Duration = 2 })
-        return
-    end
-    
-    local brightnessValues = { 1, 0.8, 0.6, 0.4, 0.25, 0.1 }
-    local shadowValues = { true, true, false, false, false, false }
-    local fogValues = { 10000, 5000, 2000, 1000, 500, 200 }
-    local transparencyValues = { 0, 0, 0.5, 0.8, 0.95, 1 }
-    
-    local idx = level
-    
-    -- Ánh sáng
-    Lighting.Brightness = brightnessValues[idx]
-    Lighting.GlobalShadows = shadowValues[idx]
-    Lighting.FogEnd = fogValues[idx]
-    Lighting.FogStart = fogValues[idx] / 2
-    
-    -- Cấp 6: Mặt đất màu xám
-    if level >= 6 and Terrain then
-        local gray = Color3.fromRGB(128, 128, 128)
-        local mats = Terrain.MaterialColors
-        if not OriginalSettings.MaterialColors or #OriginalSettings.MaterialColors == 0 then
-            OriginalSettings.MaterialColors = {}
-            for name, color in pairs(mats) do
-                OriginalSettings.MaterialColors[name] = color
-            end
-        end
-        for name, _ in pairs(mats) do
-            mats[name] = gray
-        end
-    end
-    
-    -- Làm trong suốt vật thể
-    if level >= 3 then
-        local trans = transparencyValues[idx]
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and not obj:IsA("Terrain") then
-                -- Giữ lại mặt đất để đứng (HumanoidRootPart, Baseplate, Ground)
-                local name = obj.Name:lower()
-                local isGround = name:find("ground") or name:find("baseplate") or 
-                                name:find("floor") or name:find("plot") or
-                                name:find("plantarea") or name:find("plant")
-                
-                if not isGround or level < 6 then
-                    obj.Transparency = trans
-                end
+            if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Fire") then
+                obj.Enabled = false
             end
         end
     end
     
-    -- Cấp 6: Giữ lại mặt bằng để đứng và di chuyển
-    if level >= 6 then
-        -- Đảm bảo HumanoidRootPart không bị ẩn
-        local char = game:GetService("Players").LocalPlayer.Character
-        if char then
-            for _, part in ipairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.Transparency = 0
-                end
-            end
-        end
-        -- Giữ lại PlantArea và Plot
+    if level >= 4 then -- CẤP 4: Biến mọi vật liệu thành Nhựa Trơn (SmoothPlastic)
         for _, obj in ipairs(workspace:GetDescendants()) do
             if obj:IsA("BasePart") then
-                local name = obj.Name:lower()
-                if name:find("plot") or name:find("plantarea") or name:find("garden") then
-                    obj.Transparency = 0
-                end
+                obj.Material = Enum.Material.SmoothPlastic
+                obj.Reflectance = 0
             end
         end
     end
     
-    Fluent:Notify({ Title = "Giam Lag", Content = "Da ap dung cap do: x" .. level, Duration = 2 })
+    if level >= 5 then -- CẤP 5: Xóa bỏ Decal, Texture hình ảnh dán trên block
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("Texture") or obj:IsA("Decal") then
+                obj.Transparency = 1
+            end
+        end
+    end
+    
+    if level >= 6 then -- CẤP 6 (MAX): Siêu tối giản kiểu Turbolite (Ẩn mây, làm mượt tối đa)
+        Lighting.FogEnd = 9e9
+        local clouds = workspace:FindFirstChildOfClass("Clouds")
+        if clouds then clouds:Destroy() end
+        
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" and not obj:IsDescendantOf(LP.Character) then
+                -- Giữ lại các khối chạm cơ bản nhưng triệt tiêu hoàn toàn gánh nặng render đồ họa phức tạp
+                if obj:IsA("MeshPart") then
+                    obj.TextureID = ""
+                end
+            end
+        end
+    end
 end
 
--- ============================================================
--- SERVICES
--- ============================================================
-local Lighting = game:GetService("Lighting")
-local Terrain = workspace:FindFirstChildOfClass("Terrain")
-
--- ============================================================
--- SECTION: GIẢM LAG
--- ============================================================
-local LagSection = LagTab:AddSection("Giam Lag")
-
-LagSection:AddParagraph({
-    Title = "Chon Cap Do Giam Lag",
-    Content = "x0: Khong giam lag\n"
-        .. "x1: Giam nhe (giam sang + suong mu)\n"
-        .. "x2: Giam vua (tat bong + giam suong mu)\n"
-        .. "x3: Giam kha (an 50% vat the + giam sang)\n"
-        .. "x4: Giam manh (an 80% vat the + toi)\n"
-        .. "x5: Giam rat manh (an 95% vat the + rat toi)\n"
-        .. "x6: Giam toi da (an toan bo vat the + mat dat xam + giu mat bang di chuyen)"
-})
-
-LagSection:AddDropdown("LagLevel_1", {
-    Title = "Cap Do Giam Lag",
-    Description = "Chon muc do giam lag",
-    Values = {"x0 (Tat)", "x1 (Nhe)", "x2 (Vua)", "x3 (Kha)", "x4 (Manh)", "x5 (Rat Manh)", "x6 (Toi Da)"},
-    Multi = false,
-    Default = "x0 (Tat)",
-    Callback = function(value)
-        if value and #value > 0 then
-            local choice = value[1]
-            local level = tonumber(choice:match("x(%d)")) or 0
-            LagLevel = level
-            applyLagLevel(level)
+-- Tự động áp dụng khi có vật thể mới sinh ra trong game (dựa theo cấp độ hiện tại)
+workspace.DescendantAdded:Connect(function(obj)
+    local lv = getgenv().Config.LagLevel
+    if lv == 0 then return end
+    task.wait(0.1)
+    pcall(function()
+        if lv >= 3 and (obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Fire")) then
+            obj.Enabled = false
+         Mikaelf lv >= 4 and obj:IsA("BasePart") then
+            obj.Material = Enum.Material.SmoothPlastic
+        elseif lv >= 5 and (obj:IsA("Texture") or obj:IsA("Decal")) then
+            obj.Transparency = 1
         end
-    end
-})
-
--- ============================================================
--- NÚT TẮT NHANH
--- ============================================================
-LagSection:AddButton({
-    Title = "Tat Giam Lag (x0)",
-    Description = "Khoi phuc tat ca ve mac dinh",
-    Callback = function()
-        LagLevel = 0
-        applyLagLevel(0)
-    end
-})
-
-LagSection:AddButton({
-    Title = "Giam Lag Toi Da (x6)",
-    Description = "Giam lag toi da, giu mat bang di chuyen",
-    Callback = function()
-        LagLevel = 6
-        applyLagLevel(6)
-    end
-})
-
-
--- ============================================================
--- TAB SETTING - LƯU CẤU HÌNH (SAVE/LOAD CONFIG)
--- ============================================================
-
--- ============================================================
--- CẤU HÌNH MẶC ĐỊNH
--- ============================================================
-local DefaultConfig = {
-    ["Plant Seed"] = { Enable = false },
-    ["Harvest"] = { Enable = false, All = false },
-    ["Sell"] = { Enable = false, ["When Full"] = false },
-    ["Buy Seed"] = { Enable = false },
-    ["Buy Gear"] = { Enable = false },
-    ["Buy Crate"] = { Enable = false },
-    ["Seed Pack"] = { Enable = false },
-    Steal = false,
-    AntiSteal = false,
-    Pet = { EquipEnabled = false, AutoTameEnabled = false },
-    StandCenter = false,
-    LagLevel = 0,
-    Theme = "Darker"
-}
-
--- ============================================================
--- HÀM LƯU CẤU HÌNH
--- ============================================================
-local function SaveConfig()
-    local configToSave = {}
-    
-    -- Lưu tất cả trạng thái từ Config
-    if Config then
-        for k, v in pairs(Config) do
-            if type(v) == "table" then
-                configToSave[k] = {}
-                for k2, v2 in pairs(v) do
-                    if type(v2) == "boolean" or type(v2) == "string" or type(v2) == "number" then
-                        configToSave[k][k2] = v2
-                    end
-                end
-            elseif type(v) == "boolean" or type(v) == "string" or type(v) == "number" then
-                configToSave[k] = v
-            end
-        end
-    end
-    
-    -- Lưu LagLevel
-    configToSave["LagLevel"] = LagLevel or 0
-    
-    -- Lưu Theme
-    configToSave["Theme"] = _G.SavedTheme or "Darker"
-    
-    -- Ghi vào file
-    local json = game:GetService("HttpService"):JSONEncode(configToSave)
-    writefile("GAG2_Settings.json", json)
-    
-    Fluent:Notify({
-        Title = "Luu Cau Hinh",
-        Content = "Da luu tat ca cai dat!",
-        Duration = 2
-    })
-    print("[Config] Da luu cau hinh!")
-end
-
--- ============================================================
--- HÀM TẢI CẤU HÌNH
--- ============================================================
-local function LoadConfig()
-    local success, data = pcall(function()
-        return readfile("GAG2_Settings.json")
     end)
-    
-    if not success or not data then
-        Fluent:Notify({
-            Title = "Loi",
-            Content = "Khong tim thay file cau hinh!",
-            Duration = 2
-        })
-        return
-    end
-    
-    local success2, config = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(data)
-    end)
-    
-    if not success2 then
-        Fluent:Notify({
-            Title = "Loi",
-            Content = "File cau hinh bi loi!",
-            Duration = 2
-        })
-        return
-    end
-    
-    -- Áp dụng cấu hình
-    if config then
-        for k, v in pairs(config) do
-            if k == "LagLevel" then
-                LagLevel = v
-                if v > 0 then applyLagLevel(v) end
-            elseif k == "Theme" then
-                _G.SavedTheme = v
-                Fluent:SetTheme(v)
-            elseif Config[k] ~= nil then
-                if type(v) == "table" and type(Config[k]) == "table" then
-                    for k2, v2 in pairs(v) do
-                        if Config[k][k2] ~= nil and type(v2) == type(Config[k][k2]) then
-                            Config[k][k2] = v2
-                        end
-                    end
-                elseif type(v) == type(Config[k]) then
-                    Config[k] = v
-                end
-            end
-        end
-    end
-    
-    Fluent:Notify({
-        Title = "Tai Cau Hinh",
-        Content = "Da tai cau hinh da luu!",
-        Duration = 2
-    })
-    print("[Config] Da tai cau hinh!")
-end
-
--- ============================================================
--- TỰ ĐỘNG LOAD KHI CHẠY SCRIPT
--- ============================================================
-task.spawn(function()
-    task.wait(1) -- Đợi các tab load xong
-    local success, data = pcall(function()
-        return readfile("GAG2_Settings.json")
-    end)
-    if success and data then
-        local ok, config = pcall(function()
-            return game:GetService("HttpService"):JSONDecode(data)
-        end)
-        if ok and config then
-            print("[Config] Dang tu dong tai cau hinh...")
-            for k, v in pairs(config) do
-                if k == "Theme" then
-                    _G.SavedTheme = v
-                    Fluent:SetTheme(v)
-                elseif Config[k] ~= nil then
-                    if type(v) == "table" and type(Config[k]) == "table" then
-                        for k2, v2 in pairs(v) do
-                            if Config[k][k2] ~= nil and type(v2) == type(Config[k][k2]) then
-                                Config[k][k2] = v2
-                            end
-                        end
-                    elseif type(v) == type(Config[k]) then
-                        Config[k] = v
-                    end
-                end
-            end
-            print("[Config] Da tu dong tai cau hinh!")
-        end
-    end
 end)
 
 -- ============================================================
--- TỰ ĐỘNG LƯU KHI THOÁT GAME
+-- GIAO DIỆN TAB GIẢM LAG (LagTab)
 -- ============================================================
-game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-    SaveConfig()
-end)
+local LagSection = LagTab:AddSection("Tối Ưu ")
 
--- ============================================================
--- UI - SECTION LƯU CẤU HÌNH
--- ============================================================
-local SaveSection = SettingTab:AddSection("Luu Cau Hinh")
-
-SaveSection:AddParagraph({
-    Title = "Tu Dong Luu",
-    Content = "Script tu dong luu cai dat khi thoat game\nva tu dong tai lai khi chay script lan sau."
-})
-
-SaveSection:AddButton({
-    Title = "Luu Cau Hinh Ngay",
-    Description = "Luu tat ca toggle va cai dat hien tai",
-    Callback = function()
-        SaveConfig()
-    end
-})
-
-SaveSection:AddButton({
-    Title = "Tai Cau Hinh",
-    Description = "Tai lai cau hinh da luu",
-    Callback = function()
-        LoadConfig()
-    end
-})
-
-SaveSection:AddButton({
-    Title = "Reset Cau Hinh",
-    Description = "Dua tat ca ve mac dinh",
-    Callback = function()
-        -- Reset Config
-        for k, v in pairs(DefaultConfig) do
-            if Config[k] ~= nil then
-                if type(v) == "table" and type(Config[k]) == "table" then
-                    for k2, v2 in pairs(v) do
-                        if Config[k][k2] ~= nil then
-                            Config[k][k2] = v2
-                        end
-                    end
-                else
-                    Config[k] = v
-                end
-            end
+LagSection:AddSlider("LagSlider", {
+    Title = "Cấp Độ Giảm Lag",
+    Description = "0: Tắt | 1-5: Tăng dần | 6: Siêu mượt (Tối đa)",
+    Min = 0, Max = 6, Default = 0, Rounding = 0,
+    Callback = function(v)
+        getgenv().Config.LagLevel = v
+        if v > 0 then
+            ApplyFixLag(v)
+            Fluent:Notify({
+                Title = "XNhau",
+                Content = "Đã kích hoạt Fix Lag Cấp Độ " .. tostring(v),
+                Duration = 3
+            })
         end
-        LagLevel = 0
-        applyLagLevel(0)
-        Fluent:SetTheme("Darker")
-        SaveConfig()
-        Fluent:Notify({
-            Title = "Reset",
-            Content = "Da reset ve mac dinh va luu!",
-            Duration = 2
-        })
     end
 })
