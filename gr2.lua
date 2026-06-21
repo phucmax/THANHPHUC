@@ -3,7 +3,7 @@
 local Fluent, SaveManager, InterfaceManager = loadstring(Game:HttpGet("https://raw.githubusercontent.com/discoart/FluentPlus/refs/heads/main/Beta.lua"))()
 
 local Window = Fluent:CreateWindow({
-    Title = "PHUCMAX Hub",
+    Title = "XNhau",
     SubTitle = "Grow a Garden 2 ",
     Size = UDim2.fromOffset(480, 380),
     Acrylic = true,
