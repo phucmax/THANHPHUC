@@ -2285,103 +2285,426 @@ ThemeSection:AddButton({
 })
 
 -- ============================================================
--- HÀM XỬ LÝ FIX LAG 6 CẤP ĐỘ THEO TURBOLITE
+-- TAB GIẢM LAG - 6 CẤP ĐỘ
 -- ============================================================
-local function ApplyFixLag(level)
-    if level >= 1 then -- CẤP 1: Tắt hiệu ứng Lighting cơ bản
-        Lighting.GlobalShadows = false
-        for _, effect in ipairs(Lighting:GetChildren()) do
-            if effect:IsA("BloomEffect") or effect:IsA("BlurEffect") or effect:IsA("SunRaysEffect") then
-                effect.Enabled = false
-            end
-        end
+
+
+
+-- ============================================================
+-- CONFIG GIẢM LAG
+-- ============================================================
+local LagLevel = 0
+local OriginalSettings = {}
+
+-- ============================================================
+-- HÀM LƯU CÀI ĐẶT GỐC
+-- ============================================================
+local function saveOriginalSettings()
+    OriginalSettings = {
+        Brightness = Lighting.Brightness,
+        GlobalShadows = Lighting.GlobalShadows,
+        FogEnd = Lighting.FogEnd,
+        FogStart = Lighting.FogStart,
+        MaterialColors = {},
+        Textures = {}
+    }
+end
+
+-- ============================================================
+-- HÀM KHÔI PHỤC CÀI ĐẶT GỐC
+-- ============================================================
+local function restoreSettings()
+    if OriginalSettings.Brightness then
+        Lighting.Brightness = OriginalSettings.Brightness
+    end
+    if OriginalSettings.GlobalShadows ~= nil then
+        Lighting.GlobalShadows = OriginalSettings.GlobalShadows
+    end
+    if OriginalSettings.FogEnd then
+        Lighting.FogEnd = OriginalSettings.FogEnd
+    end
+    if OriginalSettings.FogStart then
+        Lighting.FogStart = OriginalSettings.FogStart
+    end
+end
+
+-- ============================================================
+-- HÀM ÁP DỤNG GIẢM LAG THEO CẤP
+-- ============================================================
+local function applyLagLevel(level)
+    local Lighting = game:GetService("Lighting")
+    local Terrain = workspace:FindFirstChildOfClass("Terrain")
+    
+    -- Lưu cài đặt gốc lần đầu
+    if level == 1 and not OriginalSettings.Brightness then
+        saveOriginalSettings()
     end
     
-    if level >= 2 then -- CẤP 2: Hạ cấu hình Nước & Địa hình
+    if level == 0 then
+        -- Khôi phục hoàn toàn
+        restoreSettings()
         if Terrain then
-            Terrain.WaterWaveSize = 0
-            Terrain.WaterWaveSpeed = 0
-            Terrain.WaterReflectance = 0
-            Terrain.WaterTransparency = 0
+            Terrain.MaterialColors = OriginalSettings.MaterialColors or {}
         end
-        settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-    end
-    
-    if level >= 3 then -- CẤP 3: Tắt các hạt hiệu ứng (Khói, lửa, lấp lánh của cây)
+        -- Hiện lại tất cả vật thể
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Fire") then
-                obj.Enabled = false
+            if obj:IsA("BasePart") and obj.Transparency == 1 then
+                obj.Transparency = 0
             end
         end
+        Fluent:Notify({ Title = "Giam Lag", Content = "Da tat giam lag!", Duration = 2 })
+        return
     end
     
-    if level >= 4 then -- CẤP 4: Biến mọi vật liệu thành Nhựa Trơn (SmoothPlastic)
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") then
-                obj.Material = Enum.Material.SmoothPlastic
-                obj.Reflectance = 0
+    local brightnessValues = { 1, 0.8, 0.6, 0.4, 0.25, 0.1 }
+    local shadowValues = { true, true, false, false, false, false }
+    local fogValues = { 10000, 5000, 2000, 1000, 500, 200 }
+    local transparencyValues = { 0, 0, 0.5, 0.8, 0.95, 1 }
+    
+    local idx = level
+    
+    -- Ánh sáng
+    Lighting.Brightness = brightnessValues[idx]
+    Lighting.GlobalShadows = shadowValues[idx]
+    Lighting.FogEnd = fogValues[idx]
+    Lighting.FogStart = fogValues[idx] / 2
+    
+    -- Cấp 6: Mặt đất màu xám
+    if level >= 6 and Terrain then
+        local gray = Color3.fromRGB(128, 128, 128)
+        local mats = Terrain.MaterialColors
+        if not OriginalSettings.MaterialColors or #OriginalSettings.MaterialColors == 0 then
+            OriginalSettings.MaterialColors = {}
+            for name, color in pairs(mats) do
+                OriginalSettings.MaterialColors[name] = color
             end
+        end
+        for name, _ in pairs(mats) do
+            mats[name] = gray
         end
     end
     
-    if level >= 5 then -- CẤP 5: Xóa bỏ Decal, Texture hình ảnh dán trên block
+    -- Làm trong suốt vật thể
+    if level >= 3 then
+        local trans = transparencyValues[idx]
         for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("Texture") or obj:IsA("Decal") then
-                obj.Transparency = 1
-            end
-        end
-    end
-    
-    if level >= 6 then -- CẤP 6 (MAX): Siêu tối giản kiểu Turbolite (Ẩn mây, làm mượt tối đa)
-        Lighting.FogEnd = 9e9
-        local clouds = workspace:FindFirstChildOfClass("Clouds")
-        if clouds then clouds:Destroy() end
-        
-        for _, obj in ipairs(workspace:GetDescendants()) do
-            if obj:IsA("BasePart") and obj.Name ~= "HumanoidRootPart" and not obj:IsDescendantOf(LP.Character) then
-                -- Giữ lại các khối chạm cơ bản nhưng triệt tiêu hoàn toàn gánh nặng render đồ họa phức tạp
-                if obj:IsA("MeshPart") then
-                    obj.TextureID = ""
+            if obj:IsA("BasePart") and not obj:IsA("Terrain") then
+                -- Giữ lại mặt đất để đứng (HumanoidRootPart, Baseplate, Ground)
+                local name = obj.Name:lower()
+                local isGround = name:find("ground") or name:find("baseplate") or 
+                                name:find("floor") or name:find("plot") or
+                                name:find("plantarea") or name:find("plant")
+                
+                if not isGround or level < 6 then
+                    obj.Transparency = trans
                 end
             end
         end
     end
+    
+    -- Cấp 6: Giữ lại mặt bằng để đứng và di chuyển
+    if level >= 6 then
+        -- Đảm bảo HumanoidRootPart không bị ẩn
+        local char = game:GetService("Players").LocalPlayer.Character
+        if char then
+            for _, part in ipairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.Transparency = 0
+                end
+            end
+        end
+        -- Giữ lại PlantArea và Plot
+        for _, obj in ipairs(workspace:GetDescendants()) do
+            if obj:IsA("BasePart") then
+                local name = obj.Name:lower()
+                if name:find("plot") or name:find("plantarea") or name:find("garden") then
+                    obj.Transparency = 0
+                end
+            end
+        end
+    end
+    
+    Fluent:Notify({ Title = "Giam Lag", Content = "Da ap dung cap do: x" .. level, Duration = 2 })
 end
 
--- Tự động áp dụng khi có vật thể mới sinh ra trong game (dựa theo cấp độ hiện tại)
-workspace.DescendantAdded:Connect(function(obj)
-    local lv = getgenv().Config.LagLevel
-    if lv == 0 then return end
-    task.wait(0.1)
-    pcall(function()
-        if lv >= 3 and (obj:IsA("ParticleEmitter") or obj:IsA("Trail") or obj:IsA("Smoke") or obj:IsA("Sparkles") or obj:IsA("Fire")) then
-            obj.Enabled = false
-         Mikaelf lv >= 4 and obj:IsA("BasePart") then
-            obj.Material = Enum.Material.SmoothPlastic
-        elseif lv >= 5 and (obj:IsA("Texture") or obj:IsA("Decal")) then
-            obj.Transparency = 1
+-- ============================================================
+-- SERVICES
+-- ============================================================
+local Lighting = game:GetService("Lighting")
+local Terrain = workspace:FindFirstChildOfClass("Terrain")
+
+-- ============================================================
+-- SECTION: GIẢM LAG
+-- ============================================================
+local LagSection = LagTab:AddSection("Giam Lag")
+
+LagSection:AddParagraph({
+    Title = "Chon Cap Do Giam Lag",
+    Content = "x0: Khong giam lag\n"
+        .. "x1: Giam nhe (giam sang + suong mu)\n"
+        .. "x2: Giam vua (tat bong + giam suong mu)\n"
+        .. "x3: Giam kha (an 50% vat the + giam sang)\n"
+        .. "x4: Giam manh (an 80% vat the + toi)\n"
+        .. "x5: Giam rat manh (an 95% vat the + rat toi)\n"
+        .. "x6: Giam toi da (an toan bo vat the + mat dat xam + giu mat bang di chuyen)"
+})
+
+LagSection:AddDropdown("LagLevel_1", {
+    Title = "Cap Do Giam Lag",
+    Description = "Chon muc do giam lag",
+    Values = {"x0 (Tat)", "x1 (Nhe)", "x2 (Vua)", "x3 (Kha)", "x4 (Manh)", "x5 (Rat Manh)", "x6 (Toi Da)"},
+    Multi = false,
+    Default = "x0 (Tat)",
+    Callback = function(value)
+        if value and #value > 0 then
+            local choice = value[1]
+            local level = tonumber(choice:match("x(%d)")) or 0
+            LagLevel = level
+            applyLagLevel(level)
         end
+    end
+})
+
+-- ============================================================
+-- NÚT TẮT NHANH
+-- ============================================================
+LagSection:AddButton({
+    Title = "Tat Giam Lag (x0)",
+    Description = "Khoi phuc tat ca ve mac dinh",
+    Callback = function()
+        LagLevel = 0
+        applyLagLevel(0)
+    end
+})
+
+LagSection:AddButton({
+    Title = "Giam Lag Toi Da (x6)",
+    Description = "Giam lag toi da, giu mat bang di chuyen",
+    Callback = function()
+        LagLevel = 6
+        applyLagLevel(6)
+    end
+})
+
+
+-- ============================================================
+-- TAB SETTING - LƯU CẤU HÌNH (SAVE/LOAD CONFIG)
+-- ============================================================
+
+-- ============================================================
+-- CẤU HÌNH MẶC ĐỊNH
+-- ============================================================
+local DefaultConfig = {
+    ["Plant Seed"] = { Enable = false },
+    ["Harvest"] = { Enable = false, All = false },
+    ["Sell"] = { Enable = false, ["When Full"] = false },
+    ["Buy Seed"] = { Enable = false },
+    ["Buy Gear"] = { Enable = false },
+    ["Buy Crate"] = { Enable = false },
+    ["Seed Pack"] = { Enable = false },
+    Steal = false,
+    AntiSteal = false,
+    Pet = { EquipEnabled = false, AutoTameEnabled = false },
+    StandCenter = false,
+    LagLevel = 0,
+    Theme = "Darker"
+}
+
+-- ============================================================
+-- HÀM LƯU CẤU HÌNH
+-- ============================================================
+local function SaveConfig()
+    local configToSave = {}
+    
+    -- Lưu tất cả trạng thái từ Config
+    if Config then
+        for k, v in pairs(Config) do
+            if type(v) == "table" then
+                configToSave[k] = {}
+                for k2, v2 in pairs(v) do
+                    if type(v2) == "boolean" or type(v2) == "string" or type(v2) == "number" then
+                        configToSave[k][k2] = v2
+                    end
+                end
+            elseif type(v) == "boolean" or type(v) == "string" or type(v) == "number" then
+                configToSave[k] = v
+            end
+        end
+    end
+    
+    -- Lưu LagLevel
+    configToSave["LagLevel"] = LagLevel or 0
+    
+    -- Lưu Theme
+    configToSave["Theme"] = _G.SavedTheme or "Darker"
+    
+    -- Ghi vào file
+    local json = game:GetService("HttpService"):JSONEncode(configToSave)
+    writefile("GAG2_Settings.json", json)
+    
+    Fluent:Notify({
+        Title = "Luu Cau Hinh",
+        Content = "Da luu tat ca cai dat!",
+        Duration = 2
+    })
+    print("[Config] Da luu cau hinh!")
+end
+
+-- ============================================================
+-- HÀM TẢI CẤU HÌNH
+-- ============================================================
+local function LoadConfig()
+    local success, data = pcall(function()
+        return readfile("GAG2_Settings.json")
     end)
+    
+    if not success or not data then
+        Fluent:Notify({
+            Title = "Loi",
+            Content = "Khong tim thay file cau hinh!",
+            Duration = 2
+        })
+        return
+    end
+    
+    local success2, config = pcall(function()
+        return game:GetService("HttpService"):JSONDecode(data)
+    end)
+    
+    if not success2 then
+        Fluent:Notify({
+            Title = "Loi",
+            Content = "File cau hinh bi loi!",
+            Duration = 2
+        })
+        return
+    end
+    
+    -- Áp dụng cấu hình
+    if config then
+        for k, v in pairs(config) do
+            if k == "LagLevel" then
+                LagLevel = v
+                if v > 0 then applyLagLevel(v) end
+            elseif k == "Theme" then
+                _G.SavedTheme = v
+                Fluent:SetTheme(v)
+            elseif Config[k] ~= nil then
+                if type(v) == "table" and type(Config[k]) == "table" then
+                    for k2, v2 in pairs(v) do
+                        if Config[k][k2] ~= nil and type(v2) == type(Config[k][k2]) then
+                            Config[k][k2] = v2
+                        end
+                    end
+                elseif type(v) == type(Config[k]) then
+                    Config[k] = v
+                end
+            end
+        end
+    end
+    
+    Fluent:Notify({
+        Title = "Tai Cau Hinh",
+        Content = "Da tai cau hinh da luu!",
+        Duration = 2
+    })
+    print("[Config] Da tai cau hinh!")
+end
+
+-- ============================================================
+-- TỰ ĐỘNG LOAD KHI CHẠY SCRIPT
+-- ============================================================
+task.spawn(function()
+    task.wait(1) -- Đợi các tab load xong
+    local success, data = pcall(function()
+        return readfile("GAG2_Settings.json")
+    end)
+    if success and data then
+        local ok, config = pcall(function()
+            return game:GetService("HttpService"):JSONDecode(data)
+        end)
+        if ok and config then
+            print("[Config] Dang tu dong tai cau hinh...")
+            for k, v in pairs(config) do
+                if k == "Theme" then
+                    _G.SavedTheme = v
+                    Fluent:SetTheme(v)
+                elseif Config[k] ~= nil then
+                    if type(v) == "table" and type(Config[k]) == "table" then
+                        for k2, v2 in pairs(v) do
+                            if Config[k][k2] ~= nil and type(v2) == type(Config[k][k2]) then
+                                Config[k][k2] = v2
+                            end
+                        end
+                    elseif type(v) == type(Config[k]) then
+                        Config[k] = v
+                    end
+                end
+            end
+            print("[Config] Da tu dong tai cau hinh!")
+        end
+    end
 end)
 
 -- ============================================================
--- GIAO DIỆN TAB GIẢM LAG (LagTab)
+-- TỰ ĐỘNG LƯU KHI THOÁT GAME
 -- ============================================================
-local LagSection = LagTab:AddSection("Tối Ưu ")
+game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
+    SaveConfig()
+end)
 
-LagSection:AddSlider("LagSlider", {
-    Title = "Cấp Độ Giảm Lag",
-    Description = "0: Tắt | 1-5: Tăng dần | 6: Siêu mượt (Tối đa)",
-    Min = 0, Max = 6, Default = 0, Rounding = 0,
-    Callback = function(v)
-        getgenv().Config.LagLevel = v
-        if v > 0 then
-            ApplyFixLag(v)
-            Fluent:Notify({
-                Title = "XNhau",
-                Content = "Đã kích hoạt Fix Lag Cấp Độ " .. tostring(v),
-                Duration = 3
-            })
+-- ============================================================
+-- UI - SECTION LƯU CẤU HÌNH
+-- ============================================================
+local SaveSection = SettingTab:AddSection("Luu Cau Hinh")
+
+SaveSection:AddParagraph({
+    Title = "Tu Dong Luu",
+    Content = "Script tu dong luu cai dat khi thoat game\nva tu dong tai lai khi chay script lan sau."
+})
+
+SaveSection:AddButton({
+    Title = "Luu Cau Hinh Ngay",
+    Description = "Luu tat ca toggle va cai dat hien tai",
+    Callback = function()
+        SaveConfig()
+    end
+})
+
+SaveSection:AddButton({
+    Title = "Tai Cau Hinh",
+    Description = "Tai lai cau hinh da luu",
+    Callback = function()
+        LoadConfig()
+    end
+})
+
+SaveSection:AddButton({
+    Title = "Reset Cau Hinh",
+    Description = "Dua tat ca ve mac dinh",
+    Callback = function()
+        -- Reset Config
+        for k, v in pairs(DefaultConfig) do
+            if Config[k] ~= nil then
+                if type(v) == "table" and type(Config[k]) == "table" then
+                    for k2, v2 in pairs(v) do
+                        if Config[k][k2] ~= nil then
+                            Config[k][k2] = v2
+                        end
+                    end
+                else
+                    Config[k] = v
+                end
+            end
         end
+        LagLevel = 0
+        applyLagLevel(0)
+        Fluent:SetTheme("Darker")
+        SaveConfig()
+        Fluent:Notify({
+            Title = "Reset",
+            Content = "Da reset ve mac dinh va luu!",
+            Duration = 2
+        })
     end
 })
