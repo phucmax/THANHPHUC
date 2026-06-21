@@ -1,10 +1,13 @@
 
 
-local Fluent, SaveManager, InterfaceManager = loadstring(Game:HttpGet("https://raw.githubusercontent.com/discoart/FluentPlus/refs/heads/main/Beta.lua"))()
+-- ============================================================
+-- KHỞI TẠO THƯ VIỆN FLUENT VÀ TẠO WINDOW GỐC
+-- ============================================================
+local Fluent, SaveManager, InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/discoart/FluentPlus/refs/heads/main/Beta.lua"))()
 
 local Window = Fluent:CreateWindow({
     Title = "X Nhau",
-    SubTitle = "Grow a Garden 2 ",
+    SubTitle = "Grow a Garden 2",
     Size = UDim2.fromOffset(480, 380),
     Acrylic = true,
     Theme = "Darker",
@@ -12,16 +15,210 @@ local Window = Fluent:CreateWindow({
     TabWidth = 160
 })
 
+-- Đồng bộ biến Window lên bộ nhớ toàn cục ngay lập tức để nút bấm nhận diện
+getgenv().Window = Window
 
 -- ============================================================
--- TABS
+-- CÁC TAB CỦA MENU
 -- ============================================================
 local InfoTab = Window:AddTab({ Title = "Thong Tin", Icon = "" })
 local MainTab = Window:AddTab({ Title = "Chinh", Icon = "" })
 local PetTab = Window:AddTab({ Title = "Thu Cuong", Icon = "" })
 local ShopTab = Window:AddTab({ Title = "Cua Hang", Icon = "" })
-local LagTab = Window:AddTab({ Title = "Giam Lag", Icon = "" })
 local SettingTab = Window:AddTab({ Title = "Cai Dat", Icon = "" })
+local LagTab = Window:AddTab({ Title = "Giam Lag", Icon = "" })
+
+-- ============================================================
+-- KHỞI TẠO NÚT BẤM XNHAU HOÀN CHỈNH (CÓ SỬA LỖI ĐÓNG MỞ)
+-- ============================================================
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local CoreGui = game:GetService("CoreGui")
+
+local existingGui = playerGui:FindFirstChild("CustomScreenGui")
+if existingGui then
+    existingGui:Destroy()
+end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "CustomScreenGui"
+ScreenGui.Parent = playerGui
+ScreenGui.IgnoreGuiInset = true 
+
+-- 1. KHUNG CHỨA BÓNG ĐỔ (GLOW SHADOW CONTAINER)
+local ShadowContainer = Instance.new("ImageLabel")
+ShadowContainer.Name = "ShadowContainer"
+ShadowContainer.Size = UDim2.new(0, 160, 0, 70) 
+ShadowContainer.Position = UDim2.new(0.5, -80, 0.1, 0)
+ShadowContainer.BackgroundTransparency = 1
+ShadowContainer.Image = "rbxassetid://6015897843" 
+ShadowContainer.ImageColor3 = Color3.fromRGB(0, 110, 255)
+ShadowContainer.ImageTransparency = 0.3
+ShadowContainer.ScaleType = Enum.ScaleType.Slice
+ShadowContainer.SliceCenter = Rect.new(49, 49, 450, 450)
+ShadowContainer.Parent = ScreenGui
+
+-- 2. NÚT CHÍNH (MÀU XANH DƯƠNG GLOSSY ĐẬM 3D)
+local Button = Instance.new("ImageButton")
+Button.Name = "CustomButton"
+Button.Size = UDim2.new(0, 130, 0, 40)
+Button.Position = UDim2.new(0.5, -65, 0.5, -20) 
+Button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+Button.BorderSizePixel = 0
+Button.AutoButtonColor = false 
+Button.Parent = ShadowContainer
+
+local UICorner = Instance.new("UICorner")
+UICorner.CornerRadius = UDim.new(0, 20)
+UICorner.Parent = Button
+
+local MainGradient = Instance.new("UIGradient")
+MainGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 35, 140)),   
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 20, 95)),  
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 5, 50))     
+})
+MainGradient.Rotation = 90
+MainGradient.Parent = Button
+
+local UIStroke = Instance.new("UIStroke")
+UIStroke.Parent = Button
+UIStroke.Thickness = 2
+UIStroke.LineJoinMode = Enum.LineJoinMode.Round
+UIStroke.Color = Color3.fromRGB(0, 90, 255)
+UIStroke.Transparency = 0.3
+
+-- 3. HIỆU ỨNG PHẢN CHIẾU ÁNH SÁNG TRÊN ĐỈNH (GLOSSY CAP)
+local GlossFrame = Instance.new("Frame")
+GlossFrame.Name = "GlossFrame"
+GlossFrame.Size = UDim2.new(1, 0, 0.45, 0)
+GlossFrame.Position = UDim2.new(0, 0, 0, 0)
+GlossFrame.BackgroundTransparency = 0
+GlossFrame.BorderSizePixel = 0
+GlossFrame.Parent = Button
+
+local GlossCorner = Instance.new("UICorner")
+GlossCorner.CornerRadius = UDim.new(0, 20)
+GlossCorner.Parent = GlossFrame
+
+local GlossGradient = Instance.new("UIGradient")
+GlossGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
+})
+GlossGradient.Transparency = NumberSequence.new({
+    NumberSequenceKeypoint.new(0, 0.2), 
+    NumberSequenceKeypoint.new(1, 0.95) 
+})
+GlossGradient.Rotation = 90
+GlossGradient.Parent = GlossFrame
+
+-- 4. CHỮ "XNhau" MÀU SẮC CHUẨN XNHAU.LA
+local TextLabel = Instance.new("TextLabel")
+TextLabel.Parent = Button
+TextLabel.Size = UDim2.new(1, 0, 1, 0)
+TextLabel.BackgroundTransparency = 1
+TextLabel.Text = '<font color="rgb(255,150,0)">X</font><font color="rgb(205,90,255)">N</font><font color="rgb(215,110,255)">h</font><font color="rgb(230,130,255)">a</font><font color="rgb(245,150,255)">u</font>'
+TextLabel.Font = Enum.Font.GothamBold
+TextLabel.TextSize = 20
+TextLabel.TextWrapped = false
+TextLabel.TextXAlignment = Enum.TextXAlignment.Center
+TextLabel.TextYAlignment = Enum.TextYAlignment.Center
+TextLabel.RichText = true
+TextLabel.ZIndex = 3 
+
+local TextShadow = Instance.new("TextLabel")
+TextShadow.Parent = Button
+TextShadow.Size = UDim2.new(1, 0, 1, -2)
+TextShadow.Position = UDim2.new(0, 1, 0, 1)
+TextShadow.BackgroundTransparency = 1
+TextShadow.Text = "XNhau"
+TextShadow.Font = Enum.Font.GothamBold
+TextShadow.TextSize = 20
+TextShadow.TextColor3 = Color3.fromRGB(0, 0, 20)
+TextShadow.TextTransparency = 0.5
+TextShadow.ZIndex = 2
+
+-- ============================================================
+-- 5. LOGIC TOGGLE THU NHỎ/MỞ RỘNG ĐỘC LẬP
+-- ============================================================
+local function toggleFluentUI()
+    local fluentWindow = getgenv().Window
+    
+    if fluentWindow and fluentWindow.Minimize then
+        pcall(function()
+            fluentWindow:Minimize() -- Gọi lệnh thu nhỏ chính thống của thư viện Fluent
+        end)
+    else
+        -- Cơ chế quét dự phòng sâu nếu môi trường sandbox chặn getgenv()
+        local found = false
+        for _, loc in ipairs({CoreGui, playerGui}) do
+            for _, scr in ipairs(loc:GetChildren()) do
+                if scr:IsA("ScreenGui") and scr:FindFirstChild("MainFrame") then
+                    local mf = scr.MainFrame
+                    -- Tìm kiếm nút Minimize thu nhỏ bằng hình ảnh ID trên thanh TopBar
+                    for _, desc in ipairs(mf:GetDescendants()) do
+                        if desc:IsA("ImageButton") and (desc.Name:lower():find("min") or desc.Image:find("10305880150")) then
+                            pcall(function() desc:Activate() end)
+                            found = true
+                            break
+                        end
+                    end
+                end
+                if found then break end
+            end
+            if found then break end
+        end
+    end
+end
+
+-- SỰ KIỆN CLICK NÚT
+Button.MouseButton1Click:Connect(function()
+    Button:TweenSize(UDim2.new(0, 118, 0, 35), "Out", "Quad", 0.08, true)
+    task.wait(0.08)
+    Button:TweenSize(UDim2.new(0, 130, 0, 40), "Out", "Quad", 0.08, true)
+
+    toggleFluentUI()
+end)
+
+-- SỰ KIỆN KÉO THẢ (DRAGGING)
+local dragging, dragInput, dragStart, startPos
+
+local function update(input)
+    local delta = input.Position - dragStart
+    local TargetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    TweenService:Create(ShadowContainer, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = TargetPos}):Play()
+end
+
+Button.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = ShadowContainer.Position
+        
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+Button.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        update(input)
+    end
+end)
+
 
 
 
@@ -234,413 +431,6 @@ task.spawn(function()
 end)
 
 
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-
-local existingGui = playerGui:FindFirstChild("CustomScreenGui")
-if existingGui then
-    existingGui:Destroy()
-end
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CustomScreenGui"
-ScreenGui.Parent = playerGui
-ScreenGui.IgnoreGuiInset = true 
-
--- ============================================================
--- 1. KHUNG CHỨA BÓNG ĐỔ (GLOW SHADOW CONTAINER)
--- ============================================================
-local ShadowContainer = Instance.new("ImageLabel")
-ShadowContainer.Name = "ShadowContainer"
-ShadowContainer.Size = UDim2.new(0, 160, 0, 70) 
-ShadowContainer.Position = UDim2.new(0.5, -80, 0.1, 0) -- Đặt dịch xuống tí cho dễ nhìn trên Mobile
-ShadowContainer.BackgroundTransparency = 1
-ShadowContainer.Image = "rbxassetid://6015897843" 
-ShadowContainer.ImageColor3 = Color3.fromRGB(0, 110, 255)
-ShadowContainer.ImageTransparency = 0.3
-ShadowContainer.ScaleType = Enum.ScaleType.Slice
-ShadowContainer.SliceCenter = Rect.new(49, 49, 450, 450)
-ShadowContainer.Parent = ScreenGui
-
--- ============================================================
--- 2. NÚT CHÍNH (MÀU XANH DƯƠNG GLOSSY ĐẬM THEO ẢNH MẪU "DOWNLOAD")
--- ============================================================
-local Button = Instance.new("ImageButton")
-Button.Name = "CustomButton"
-Button.Size = UDim2.new(0, 130, 0, 40)
-Button.Position = UDim2.new(0.5, -65, 0.5, -20) 
-Button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Button.BorderSizePixel = 0
-Button.AutoButtonColor = false 
-Button.Parent = ShadowContainer
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 20)
-UICorner.Parent = Button
-
--- Gradient Xanh Dương Cao Cấp giống nút "DOWNLOAD" trong ảnh mẫu của mày
-local MainGradient = Instance.new("UIGradient")
-MainGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 35, 140)),   -- Xanh dương sáng ở đỉnh lớp khối
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 20, 95)),  
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 5, 50))     -- Xanh đen đậm ở đáy nút tạo độ sâu 3D cực mạnh
-})
-MainGradient.Rotation = 90
-MainGradient.Parent = Button
-
-local UIStroke = Instance.new("UIStroke")
-UIStroke.Parent = Button
-UIStroke.Thickness = 2
-UIStroke.LineJoinMode = Enum.LineJoinMode.Round
-UIStroke.Color = Color3.fromRGB(0, 90, 255)
-UIStroke.Transparency = 0.3
-
--- ============================================================
--- 3. HIỆU ỨNG PHẢN CHIẾU ÁNH SÁNG TRÊN ĐỈNH (GLOSSY CAP)
--- ============================================================
-local GlossFrame = Instance.new("Frame")
-GlossFrame.Name = "GlossFrame"
-GlossFrame.Size = UDim2.new(1, 0, 0.45, 0)
-GlossFrame.Position = UDim2.new(0, 0, 0, 0)
-GlossFrame.BackgroundTransparency = 0
-GlossFrame.BorderSizePixel = 0
-GlossFrame.Parent = Button
-
-local GlossCorner = Instance.new("UICorner")
-GlossCorner.CornerRadius = UDim.new(0, 20)
-GlossCorner.Parent = GlossFrame
-
-local GlossGradient = Instance.new("UIGradient")
-GlossGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
-})
-GlossGradient.Transparency = NumberSequence.new({
-    NumberSequenceKeypoint.new(0, 0.2), 
-    NumberSequenceKeypoint.new(1, 0.95) 
-})
-GlossGradient.Rotation = 90
-GlossGradient.Parent = GlossFrame
-
--- ============================================================
--- 4. CHỮ "XNhau" THIẾT KẾ ĐÚNG MÀU LOGO WEB XNHAU.LA
--- ============================================================
-local TextLabel = Instance.new("TextLabel")
-TextLabel.Parent = Button
-TextLabel.Size = UDim2.new(1, 0, 1, 0)
-TextLabel.BackgroundTransparency = 1
--- Định dạng HTML RichText: Chữ X màu Cam-Vàng, Chữ Nhau Gradient tuyến tính
-TextLabel.Text = '<font color="rgb(255,145,0)">X</font><font color="rgb(200,100,255)">N</font><font color="rgb(220,120,255)">h</font><font color="rgb(240,140,255)">a</font><font color="rgb(255,160,255)">u</font>'
-TextLabel.Font = Enum.Font.GothamBold
-TextLabel.TextSize = 20
-TextLabel.TextWrapped = false
-TextLabel.TextXAlignment = Enum.TextXAlignment.Center
-TextLabel.TextYAlignment = Enum.TextYAlignment.Center
-TextLabel.RichText = true
-TextLabel.ZIndex = 3 
-
--- Đổ bóng mờ nhẹ phía sau chữ cho ngầu
-local TextShadow = Instance.new("TextLabel")
-TextShadow.Parent = Button
-TextShadow.Size = UDim2.new(1, 0, 1, -2)
-TextShadow.Position = UDim2.new(0, 1, 0, 1)
-TextShadow.BackgroundTransparency = 1
-TextShadow.Text = "XNhau"
-TextShadow.Font = Enum.Font.GothamBold
-TextShadow.TextSize = 20
-TextShadow.TextColor3 = Color3.fromRGB(0, 0, 20)
-TextShadow.TextTransparency = 0.4
-TextShadow.ZIndex = 2
-
--- ============================================================
--- 5. LOGIC BẬT TẮT CHỈ ĐỘC QUYỀN VỚI MENU FLUENT (AN TOÀN CHO MOBILE)
--- ============================================================
-local toggled = true
-
-local function toggleFluentUI()
-    toggled = not toggled
-    
-    -- Vòng lặp quét tìm chính xác Frame Menu chính của Fluent mà không gây lỗi tắt giao diện khác
-    local targetFrame = nil
-    
-    -- Quét trong CoreGui trước (Nơi đa số các Script Executor lưu Menu Fluent)
-    for _, gui in ipairs(CoreGui:GetChildren()) do
-        if gui:IsA("ScreenGui") and gui:FindFirstChild("MainFrame") then
-            targetFrame = gui.MainFrame
-            break
-        end
-    end
-    
-    -- Dự phòng nếu Executor của mày lưu Fluent trong PlayerGui
-    if not targetFrame then
-        for _, gui in ipairs(playerGui:GetChildren()) do
-            if gui:IsA("ScreenGui") and gui:FindFirstChild("MainFrame") then
-                targetFrame = gui.MainFrame
-                break
-            end
-        end
-    end
-    
-    -- Thực hiện ẩn/hiện độc lập
-    if targetFrame then
-        targetFrame.Visible = toggled
-    else
-        -- Cách cuối: Nếu ko tìm thấy bằng tên mặc định, quét theo cấu trúc UI gốc toàn thư viện Fluent
-        local fluentWindow = _G.FluentWindow or getgenv().FluentWindow
-        if fluentWindow and fluentWindow.MainFrame then
-            fluentWindow.MainFrame.Visible = toggled
-        else
-            warn("Đang tìm Menu Fluent... Hãy chắc chắn mày đã chạy Script Hack trước khi bấm nút!")
-        end
-    end
-end
-
--- ============================================================
--- SỰ KIỆN: CLICK CHUỘT + ANIMATION NHẤP NHÁY
--- ============================================================
-Button.MouseButton1Click:Connect(function()
-    -- Hoạt ảnh thu nhỏ nhẹ nút khi chạm vào tạo cảm giác phản hồi thật
-    Button:TweenSize(UDim2.new(0, 118, 0, 35), "Out", "Quad", 0.08, true)
-    task.wait(0.08)
-    Button:TweenSize(UDim2.new(0, 130, 0, 40), "Out", "Quad", 0.08, true)
-
-    -- Gọi luồng xử lý bật tắt an toàn
-    toggleFluentUI()
-end)
-
--- ============================================================
--- SỰ KIỆN: KÉO THẢ DI CHUYỂN TRÊN MÀN HÌNH (PC + MOBILE)
--- ============================================================
-local dragging, dragInput, dragStart, startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    local TargetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    TweenService:Create(ShadowContainer, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = TargetPos}):Play()
-end
-
-Button.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = ShadowContainer.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-Button.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
-    end
-end)
-
--- ============================================================
--- KHỞI TẠO NÚT BẤM XNHAU HOÀN CHỈNH (CÓ SỬA LỖI ĐÓNG MỞ)
--- ============================================================
-local Players = game:GetService("Players")
-local player = Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-
-local existingGui = playerGui:FindFirstChild("CustomScreenGui")
-if existingGui then
-    existingGui:Destroy()
-end
-
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "CustomScreenGui"
-ScreenGui.Parent = playerGui
-ScreenGui.IgnoreGuiInset = true 
-
--- 1. KHUNG CHỨA BÓNG ĐỔ (GLOW SHADOW CONTAINER)
-local ShadowContainer = Instance.new("ImageLabel")
-ShadowContainer.Name = "ShadowContainer"
-ShadowContainer.Size = UDim2.new(0, 160, 0, 70) 
-ShadowContainer.Position = UDim2.new(0.5, -80, 0.1, 0)
-ShadowContainer.BackgroundTransparency = 1
-ShadowContainer.Image = "rbxassetid://6015897843" 
-ShadowContainer.ImageColor3 = Color3.fromRGB(0, 110, 255)
-ShadowContainer.ImageTransparency = 0.3
-ShadowContainer.ScaleType = Enum.ScaleType.Slice
-ShadowContainer.SliceCenter = Rect.new(49, 49, 450, 450)
-ShadowContainer.Parent = ScreenGui
-
--- 2. NÚT CHÍNH (MÀU XANH DƯƠNG GLOSSY ĐẬM 3D)
-local Button = Instance.new("ImageButton")
-Button.Name = "CustomButton"
-Button.Size = UDim2.new(0, 130, 0, 40)
-Button.Position = UDim2.new(0.5, -65, 0.5, -20) 
-Button.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-Button.BorderSizePixel = 0
-Button.AutoButtonColor = false 
-Button.Parent = ShadowContainer
-
-local UICorner = Instance.new("UICorner")
-UICorner.CornerRadius = UDim.new(0, 20)
-UICorner.Parent = Button
-
-local MainGradient = Instance.new("UIGradient")
-MainGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 35, 140)),   
-    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(0, 20, 95)),  
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 5, 50))     
-})
-MainGradient.Rotation = 90
-MainGradient.Parent = Button
-
-local UIStroke = Instance.new("UIStroke")
-UIStroke.Parent = Button
-UIStroke.Thickness = 2
-UIStroke.LineJoinMode = Enum.LineJoinMode.Round
-UIStroke.Color = Color3.fromRGB(0, 90, 255)
-UIStroke.Transparency = 0.3
-
--- 3. HIỆU ỨNG PHẢN CHIẾU ÁNH SÁNG TRÊN ĐỈNH (GLOSSY CAP)
-local GlossFrame = Instance.new("Frame")
-GlossFrame.Name = "GlossFrame"
-GlossFrame.Size = UDim2.new(1, 0, 0.45, 0)
-GlossFrame.Position = UDim2.new(0, 0, 0, 0)
-GlossFrame.BackgroundTransparency = 0
-GlossFrame.BorderSizePixel = 0
-GlossFrame.Parent = Button
-
-local GlossCorner = Instance.new("UICorner")
-GlossCorner.CornerRadius = UDim.new(0, 20)
-GlossCorner.Parent = GlossFrame
-
-local GlossGradient = Instance.new("UIGradient")
-GlossGradient.Color = ColorSequence.new({
-    ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 255, 255)),
-    ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 255, 255))
-})
-GlossGradient.Transparency = NumberSequence.new({
-    NumberSequenceKeypoint.new(0, 0.2), 
-    NumberSequenceKeypoint.new(1, 0.95) 
-})
-GlossGradient.Rotation = 90
-GlossGradient.Parent = GlossFrame
-
--- 4. CHỮ "XNhau" MÀU SẮC CHUẨN XNHAU.LA
-local TextLabel = Instance.new("TextLabel")
-TextLabel.Parent = Button
-TextLabel.Size = UDim2.new(1, 0, 1, 0)
-TextLabel.BackgroundTransparency = 1
-TextLabel.Text = '<font color="rgb(255,150,0)">X</font><font color="rgb(205,90,255)">N</font><font color="rgb(215,110,255)">h</font><font color="rgb(230,130,255)">a</font><font color="rgb(245,150,255)">u</font>'
-TextLabel.Font = Enum.Font.GothamBold
-TextLabel.TextSize = 20
-TextLabel.TextWrapped = false
-TextLabel.TextXAlignment = Enum.TextXAlignment.Center
-TextLabel.TextYAlignment = Enum.TextYAlignment.Center
-TextLabel.RichText = true
-TextLabel.ZIndex = 3 
-
-local TextShadow = Instance.new("TextLabel")
-TextShadow.Parent = Button
-TextShadow.Size = UDim2.new(1, 0, 1, -2)
-TextShadow.Position = UDim2.new(0, 1, 0, 1)
-TextShadow.BackgroundTransparency = 1
-TextShadow.Text = "XNhau"
-TextShadow.Font = Enum.Font.GothamBold
-TextShadow.TextSize = 20
-TextShadow.TextColor3 = Color3.fromRGB(0, 0, 20)
-TextShadow.TextTransparency = 0.5
-TextShadow.ZIndex = 2
-
--- ============================================================
--- 5. LOGIC TOGGLE THU NHỎ/MỞ RỘNG ĐỘC LẬP
--- ============================================================
-local function toggleFluentUI()
-    local fluentWindow = getgenv().Window
-    
-    if fluentWindow and fluentWindow.Minimize then
-        pcall(function()
-            fluentWindow:Minimize() -- Gọi lệnh thu nhỏ chính thống của thư viện Fluent
-        end)
-    else
-        -- Cơ chế quét dự phòng sâu nếu môi trường sandbox chặn getgenv()
-        local found = false
-        for _, loc in ipairs({CoreGui, playerGui}) do
-            for _, scr in ipairs(loc:GetChildren()) do
-                if scr:IsA("ScreenGui") and scr:FindFirstChild("MainFrame") then
-                    local mf = scr.MainFrame
-                    -- Tìm kiếm nút Minimize thu nhỏ bằng hình ảnh ID trên thanh TopBar
-                    for _, desc in ipairs(mf:GetDescendants()) do
-                        if desc:IsA("ImageButton") and (desc.Name:lower():find("min") or desc.Image:find("10305880150")) then
-                            pcall(function() desc:Activate() end)
-                            found = true
-                            break
-                        end
-                    end
-                end
-                if found then break end
-            end
-            if found then break end
-        end
-    end
-end
-
--- SỰ KIỆN CLICK NÚT
-Button.MouseButton1Click:Connect(function()
-    Button:TweenSize(UDim2.new(0, 118, 0, 35), "Out", "Quad", 0.08, true)
-    task.wait(0.08)
-    Button:TweenSize(UDim2.new(0, 130, 0, 40), "Out", "Quad", 0.08, true)
-
-    toggleFluentUI()
-end)
-
--- SỰ KIỆN KÉO THẢ (DRAGGING)
-local dragging, dragInput, dragStart, startPos
-
-local function update(input)
-    local delta = input.Position - dragStart
-    local TargetPos = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-    TweenService:Create(ShadowContainer, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {Position = TargetPos}):Play()
-end
-
-Button.InputBegan:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-        dragging = true
-        dragStart = input.Position
-        startPos = ShadowContainer.Position
-        
-        input.Changed:Connect(function()
-            if input.UserInputState == Enum.UserInputState.End then
-                dragging = false
-            end
-        end)
-    end
-end)
-
-Button.InputChanged:Connect(function(input)
-    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-        dragInput = input
-    end
-end)
-
-UserInputService.InputChanged:Connect(function(input)
-    if input == dragInput and dragging then
-        update(input)
-    end
-end)
-
-
 
 -- ============================================================
 -- 2. AUTO COLLECT FRUIT (LOGIC THẬT)
@@ -735,23 +525,6 @@ task.spawn(function()
     end
 end)
 
-
-
--- ============================================================
--- 5. AUTO SELL (LOGIC THẬT)
--- ============================================================
-task.spawn(function()
-    while true do
-        if Config.Sell.Enable then
-            pcall(function() Networking.NPCS.SellAll:Fire() end)
-        end
-        if Config.Sell["When Full"] and isBackpackFull() then
-            pcall(function() Networking.NPCS.SellAll:Fire() end)
-        end
-        task.wait(Config.Settings["Sell Delay"] or 0.2)
-    end
-end)
-
 -- ============================================================
 -- 6. ANTI STEAL (LOGIC THẬT)
 -- ============================================================
@@ -783,6 +556,42 @@ task.spawn(function()
         task.wait(0.5)
     end
 end)
+
+-- ============================================================
+-- BUY SEEDS LOOP
+-- ============================================================
+task.spawn(function()
+    while true do
+        if Config["Buy Seed"].Enable then
+            for name, enabled in pairs(Config["Buy Seed"].Seed) do
+                if enabled then
+                    pcall(function() Packet:FireServer(103, name) end)
+                    task.wait(0.2)
+                end
+            end
+        end
+        task.wait(1.5)
+    end
+end)
+
+-- ============================================================
+-- 5. AUTO SELL (LOGIC THẬT)
+-- ============================================================
+task.spawn(function()
+    while true do
+        if Config.Sell.Enable then
+            pcall(function() Networking.NPCS.SellAll:Fire() end)
+        end
+        if Config.Sell["When Full"] and isBackpackFull() then
+            pcall(function() Networking.NPCS.SellAll:Fire() end)
+        end
+        task.wait(Config.Settings["Sell Delay"] or 0.2)
+    end
+end)
+
+
+
+
 
 -- ============================================================
 -- BUY SEEDS LOOP
@@ -1110,6 +919,28 @@ PlantSection:AddToggle("AutoPlantAll_1", {
 })
 
 
+-- ============================================================
+-- CHẠY SCRIPT TỪ LINK - TAB MAIN
+-- ============================================================
+local RunScriptSection = MainTab:AddSection("nhan ban")
+
+RunScriptSection:AddButton({
+    Title = "Chay script dupe",
+    Description = "dupe",
+    Callback = function()
+        Fluent:Notify({ Title = "Script", Content = "Dang chay script...", Duration = 2 })
+        
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet("https://raw.githubusercontent.com/phucmax/THANHPHUC/refs/heads/main/test.lua"))()
+        end)
+        
+        if success then
+            Fluent:Notify({ Title = "Script", Content = "Da chay script thanh cong!", Duration = 2 })
+        else
+            Fluent:Notify({ Title = "Loi", Content = "Khong the chay script: " .. tostring(result), Duration = 3 })
+        end
+    end
+})
 
 
 -- SECTION 2: AUTOMATION COLLECTION
@@ -1172,245 +1003,179 @@ CollectSection:AddToggle("AutoCollect_1", {
 
 
 
--- SECTION 3: SEEDPACK
-
+-- ============================================================
+-- TROM SIÊU TỐC - CHỈ CƯỚP (ĐƠN GIẢN - HIỆU QUẢ)
+-- ============================================================
 
 -- ============================================================
--- SECTION 4: AUTOMATION STEAL + TROLL PLAYERS
+-- CONFIG
 -- ============================================================
-local StealSection = MainTab:AddSection(" Automation Steal")
-
+Config.Steal = false
+Config.StealDelay = 0.01
 
 -- ============================================================
--- SERVICES & UTILS
+-- SERVICES
 -- ============================================================
 local Players = game:GetService("Players")
 local LP = Players.LocalPlayer
-local CollectionService = game:GetService("CollectionService")
 local RS = game:GetService("ReplicatedStorage")
-local TweenService = game:GetService("TweenService")
-local UserInputService = game:GetService("UserInputService")
-local CoreGui = game:GetService("CoreGui")
-local playerGui = LP:WaitForChild("PlayerGui")
+local CollectionService = game:GetService("CollectionService")
 
 local Networking
-pcall(function() Networking = require(RS:WaitForChild("SharedModules"):WaitForChild("Networking")) end)
+pcall(function()
+    Networking = require(RS:WaitForChild("SharedModules"):WaitForChild("Networking"))
+end)
 
+-- ============================================================
+-- UTILITY
+-- ============================================================
 local function getHRP()
     local c = LP.Character
     return c and c:FindFirstChild("HumanoidRootPart")
 end
 
-local function getModel(obj)
-    while obj and obj ~= workspace do
-        if obj:IsA("Model") then return obj end
-        obj = obj.Parent
-    end
-    return nil
+local function getModel(instance)
+    if not instance then return nil end
+    return instance:FindFirstChildOfClass("Model") or instance:FindFirstAncestorOfClass("Model")
 end
 
 local function isNight()
-    local nightVal = RS:FindFirstChild("Night")
-    if nightVal then return nightVal.Value end
-    return game:GetService("Lighting").ClockTime < 6 or game:GetService("Lighting").ClockTime > 18
+    local n = RS:FindFirstChild("Night")
+    return n ~= nil and n.Value == true
+end
+
+local function getMyPlotCenter()
+    local plotId = LP:GetAttribute("PlotId")
+    if not plotId then return nil end
+    local gardens = workspace:FindFirstChild("Gardens")
+    if not gardens then return nil end
+    local plot = gardens:FindFirstChild("Plot" .. tostring(plotId))
+    if not plot then return nil end
+    local ref = plot:FindFirstChild("PlotSizeReference")
+    if ref and ref:IsA("BasePart") then return ref.Position end
+    return plot:GetPivot().Position
 end
 
 -- ============================================================
--- LOGIC AUTO CƯỚP TRÁI CÂY VIP NHẤT SERVER
+-- AUTO STEAL LOOP
 -- ============================================================
 task.spawn(function()
+    local stolenCount = 0
+    
     while true do
-        if getgenv().Config.Steal and isNight() then
+        if Config.Steal and isNight() then
             local hrp = getHRP()
-            if hrp then
-                for _, prompt in ipairs(CollectionService:GetTagged("StealPrompt")) do
-                    if not getgenv().Config.Steal then break end
-                    
-                    if prompt:IsA("ProximityPrompt") and prompt.Enabled then
-                        local model = getModel(prompt)
-                        if model then
-                            local uid = tonumber(model:GetAttribute("UserId"))
-                            local pid = model:GetAttribute("PlantId")
-                            
-                            -- Kiểm tra nếu cây không phải của mình
-                            if uid and uid ~= LP.UserId and pid then
-                                local mName = model.Name:lower()
-                                local rarity = model:GetAttribute("Rarity") and tostring(model:GetAttribute("Rarity")):lower() or ""
-                                
-                                -- BỘ LỌC VIP: Chỉ cướp trái Vàng, Cầu Vồng, Kim Cương, Thần Thoại...
-                                if mName:find("gold") or mName:find("rainbow") or mName:find("diamond") or mName:find("mythic") or mName:find("premium") or mName:find("vip") or
-                                   rarity:find("gold") or rarity:find("rainbow") or rarity:find("mythic") or rarity:find("legendary") then
-                                    
-                                    hrp.CFrame = model:GetPivot() * CFrame.new(0, 3, 0)
-                                    
-                                    pcall(function() 
-                                        if Networking and Networking.Steal then
-                                            Networking.Steal.BeginSteal:Fire(uid, pid, "") 
-                                        end
-                                    end)
-                                    
-                                    task.wait(0.3)
-                                    
-                                    pcall(function() 
-                                        if Networking and Networking.Steal then
-                                            Networking.Steal.CompleteSteal:Fire() 
-                                        end
-                                    end)
-                                    
-                                    task.wait(getgenv().Config.StealDelay or 0.5)
-                                end
-                            end
+            if not hrp then task.wait(0.1) continue end
+            
+            -- Lấy tất cả mục tiêu
+            local targets = {}
+            for _, prompt in ipairs(CollectionService:GetTagged("StealPrompt")) do
+                if prompt:IsA("ProximityPrompt") and prompt.Enabled and prompt.Parent then
+                    local model = getModel(prompt)
+                    if model then
+                        local uid = tonumber(model:GetAttribute("UserId"))
+                        local pid = model:GetAttribute("PlantId")
+                        if uid and uid ~= LP.UserId and pid then
+                            table.insert(targets, {
+                                model = model,
+                                userId = uid,
+                                plantId = pid,
+                                pos = model:GetPivot().Position
+                            })
                         end
                     end
                 end
             end
-        end
-        task.wait(0.5) -- Đẩy tốc độ quét lên 0.5 giây một lần cho nhanh nhạy
-    end
-end)
-
-StealSection:AddSlider("StealDelay_1", {
-    Title = "Steal Delay",
-    Description = "Độ trễ giữa các lần trộm (giây)",
-    Min = 0.1, Max = 5, Default = 0.5, Rounding = 1,
-    Callback = function(v) getgenv().Config.StealDelay = v end
-})
-
-StealSection:AddToggle("AutoSteal_1", {
-    Title = " Auto Steal Fruit VIP",
-    Description = "Chỉ tự động trộm trái cây VIP cao cấp nhất (ban đêm)",
-    Default = false,
-    Callback = function(v) getgenv().Config.Steal = v end
-})
-
--- ============================================================
--- NÚT 1: SPAM DỊCH CHUYỂN TẤT CẢ PLAYER RA XA
--- ============================================================
-local teleportPlayersEnabled = false
-
-StealSection:AddToggle("TeleportPlayers_1", {
-    Title = " Dịch Chuyển Player Ra Xa",
-    Description = "Spam teleport tất cả player ra khoảng cách 999999999",
-    Default = false,
-    Callback = function(v)
-        teleportPlayersEnabled = v
-        if v then
-            Fluent:Notify({ Title = " Teleport", Content = "Đang spam dịch chuyển player ra xa!", Duration = 3 })
-        else
-            Fluent:Notify({ Title = "Teleport", Content = "Đã dừng dịch chuyển!", Duration = 2 })
-        end
-    end
-})
-
-task.spawn(function()
-    while true do
-        if teleportPlayersEnabled then
-            local myChar = LP.Character
-            if myChar then
-                for _, player in ipairs(Players:GetPlayers()) do
-                    if player ~= LP then
-                        local char = player.Character
-                        if char then
-                            local hrp = char:FindFirstChild("HumanoidRootPart")
-                            if hrp then
-                                -- Dịch chuyển ra vị trí cực xa
-                                local farPos = Vector3.new(999999999, 999999999, 999999999)
-                                pcall(function()
-                                    hrp.CFrame = CFrame.new(farPos)
-                                end)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(0.2)
-    end
-end)
-
--- ============================================================
--- NÚT 2: KHÓA CHÂN TẤT CẢ PLAYER (ĐỨNG YÊN)
--- ============================================================
-local freezePlayersEnabled = false
-
-StealSection:AddToggle("FreezePlayers_1", {
-    Title = " Khóa Chân Player",
-    Description = "Khóa tất cả player đứng yên không di chuyển được",
-    Default = false,
-    Callback = function(v)
-        freezePlayersEnabled = v
-        if v then
-            Fluent:Notify({ Title = "Khóa Chân", Content = "Đang khóa chân tất cả player!", Duration = 3 })
-        else
-            -- Thả player ra khi tắt
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LP then
-                    local char = player.Character
-                    if char then
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            pcall(function() hrp.Anchored = false end)
-                        end
-                    end
-                end
-            end
-            Fluent:Notify({ Title = "Khóa Chân", Content = "Đã thả tất cả player!", Duration = 2 })
-        end
-    end
-})
-
-task.spawn(function()
-    while true do
-        if freezePlayersEnabled then
-            for _, player in ipairs(Players:GetPlayers()) do
-                if player ~= LP then
-                    local char = player.Character
-                    if char then
-                        local hrp = char:FindFirstChild("HumanoidRootPart")
-                        if hrp then
-                            pcall(function()
-                                hrp.Anchored = true
-                            end)
-                        end
-                        -- Khóa cả các bộ phận khác
-                        for _, part in ipairs(char:GetChildren()) do
-                            if part:IsA("BasePart") then
-                                pcall(function() part.Anchored = true end)
-                            end
-                        end
-                    end
-                end
-            end
-        end
-        task.wait(0.1)
-    end
-end)
-
--- Khi player mới vào game cũng bị khóa nếu đang bật
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function(char)
-        task.wait(0.5)
-        if freezePlayersEnabled and player ~= LP then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                pcall(function() hrp.Anchored = true end)
-            end
-            for _, part in ipairs(char:GetChildren()) do
-                if part:IsA("BasePart") then
-                    pcall(function() part.Anchored = true end)
-                end
-            end
-        end
-        if teleportPlayersEnabled and player ~= LP then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp then
+            
+            if #targets == 0 then task.wait(0.1) continue end
+            
+            -- Chọn mục tiêu đầu tiên
+            local target = targets[1]
+            
+            -- Bay đến
+            hrp.CFrame = CFrame.new(target.pos + Vector3.new(0, 2, 0))
+            task.wait(0.03)
+            
+            -- Spam cướp trong 3 giây
+            local startTime = os.clock()
+            local success = false
+            
+            while os.clock() - startTime < 3 and not success do
                 pcall(function()
-                    hrp.CFrame = CFrame.new(999999999, 999999999, 999999999)
+                    Networking.Steal.BeginSteal:Fire(target.userId, target.plantId, "")
                 end)
+                task.wait(0.1)
+                pcall(function()
+                    Networking.Steal.CompleteSteal:Fire()
+                end)
+                
+                -- Kiểm tra cây còn không
+                if not target.model.Parent then
+                    success = true
+                    stolenCount = stolenCount + 1
+                end
+                task.wait(0.05)
+            end
+            
+            -- Nếu không được thì thử mục tiêu thứ 2
+            if not success and #targets >= 2 then
+                target = targets[2]
+                hrp.CFrame = CFrame.new(target.pos + Vector3.new(0, 2, 0))
+                task.wait(0.03)
+                
+                startTime = os.clock()
+                while os.clock() - startTime < 3 and not success do
+                    pcall(function()
+                        Networking.Steal.BeginSteal:Fire(target.userId, target.plantId, "")
+                    end)
+                    task.wait(0.1)
+                    pcall(function()
+                        Networking.Steal.CompleteSteal:Fire()
+                    end)
+                    if not target.model.Parent then
+                        success = true
+                        stolenCount = stolenCount + 1
+                    end
+                    task.wait(0.05)
+                end
+            end
+            
+            -- 5 trái về vườn
+            if stolenCount >= 5 then
+                stolenCount = 0
+                local myCenter = getMyPlotCenter()
+                if myCenter then
+                    hrp.CFrame = CFrame.new(myCenter + Vector3.new(0, 5, 0))
+                end
+                task.wait(0.5)
             end
         end
-    end)
+        task.wait(Config.StealDelay or 0.01)
+    end
 end)
+
+-- ============================================================
+-- UI
+-- ============================================================
+local StealSection = MainTab:AddSection("Tu Dong Trom")
+
+StealSection:AddToggle("AutoSteal", {
+    Title = "Tu Dong Trom",
+    Description = "Cuop VIP - 5 trai ve vuon",
+    Default = false,
+    Callback = function(v)
+        Config.Steal = v
+        if v then
+            Fluent:Notify({ Title = "Trom", Content = "Da bat!", Duration = 2 })
+        end
+    end
+})
+
+StealSection:AddSlider("StealSpeed", {
+    Title = "Toc Do",
+    Min = 0.01, Max = 0.5, Default = 0.01, Rounding = 2,
+    Callback = function(v) Config.StealDelay = v end
+})
 
 -- ============================================================
 -- CONFIG GLOBAL
@@ -2487,224 +2252,3 @@ LagSection:AddButton({
 })
 
 
--- ============================================================
--- TAB SETTING - LƯU CẤU HÌNH (SAVE/LOAD CONFIG)
--- ============================================================
-
--- ============================================================
--- CẤU HÌNH MẶC ĐỊNH
--- ============================================================
-local DefaultConfig = {
-    ["Plant Seed"] = { Enable = false },
-    ["Harvest"] = { Enable = false, All = false },
-    ["Sell"] = { Enable = false, ["When Full"] = false },
-    ["Buy Seed"] = { Enable = false },
-    ["Buy Gear"] = { Enable = false },
-    ["Buy Crate"] = { Enable = false },
-    ["Seed Pack"] = { Enable = false },
-    Steal = false,
-    AntiSteal = false,
-    Pet = { EquipEnabled = false, AutoTameEnabled = false },
-    StandCenter = false,
-    LagLevel = 0,
-    Theme = "Darker"
-}
-
--- ============================================================
--- HÀM LƯU CẤU HÌNH
--- ============================================================
-local function SaveConfig()
-    local configToSave = {}
-    
-    -- Lưu tất cả trạng thái từ Config
-    if Config then
-        for k, v in pairs(Config) do
-            if type(v) == "table" then
-                configToSave[k] = {}
-                for k2, v2 in pairs(v) do
-                    if type(v2) == "boolean" or type(v2) == "string" or type(v2) == "number" then
-                        configToSave[k][k2] = v2
-                    end
-                end
-            elseif type(v) == "boolean" or type(v) == "string" or type(v) == "number" then
-                configToSave[k] = v
-            end
-        end
-    end
-    
-    -- Lưu LagLevel
-    configToSave["LagLevel"] = LagLevel or 0
-    
-    -- Lưu Theme
-    configToSave["Theme"] = _G.SavedTheme or "Darker"
-    
-    -- Ghi vào file
-    local json = game:GetService("HttpService"):JSONEncode(configToSave)
-    writefile("GAG2_Settings.json", json)
-    
-    Fluent:Notify({
-        Title = "Luu Cau Hinh",
-        Content = "Da luu tat ca cai dat!",
-        Duration = 2
-    })
-    print("[Config] Da luu cau hinh!")
-end
-
--- ============================================================
--- HÀM TẢI CẤU HÌNH
--- ============================================================
-local function LoadConfig()
-    local success, data = pcall(function()
-        return readfile("GAG2_Settings.json")
-    end)
-    
-    if not success or not data then
-        Fluent:Notify({
-            Title = "Loi",
-            Content = "Khong tim thay file cau hinh!",
-            Duration = 2
-        })
-        return
-    end
-    
-    local success2, config = pcall(function()
-        return game:GetService("HttpService"):JSONDecode(data)
-    end)
-    
-    if not success2 then
-        Fluent:Notify({
-            Title = "Loi",
-            Content = "File cau hinh bi loi!",
-            Duration = 2
-        })
-        return
-    end
-    
-    -- Áp dụng cấu hình
-    if config then
-        for k, v in pairs(config) do
-            if k == "LagLevel" then
-                LagLevel = v
-                if v > 0 then applyLagLevel(v) end
-            elseif k == "Theme" then
-                _G.SavedTheme = v
-                Fluent:SetTheme(v)
-            elseif Config[k] ~= nil then
-                if type(v) == "table" and type(Config[k]) == "table" then
-                    for k2, v2 in pairs(v) do
-                        if Config[k][k2] ~= nil and type(v2) == type(Config[k][k2]) then
-                            Config[k][k2] = v2
-                        end
-                    end
-                elseif type(v) == type(Config[k]) then
-                    Config[k] = v
-                end
-            end
-        end
-    end
-    
-    Fluent:Notify({
-        Title = "Tai Cau Hinh",
-        Content = "Da tai cau hinh da luu!",
-        Duration = 2
-    })
-    print("[Config] Da tai cau hinh!")
-end
-
--- ============================================================
--- TỰ ĐỘNG LOAD KHI CHẠY SCRIPT
--- ============================================================
-task.spawn(function()
-    task.wait(1) -- Đợi các tab load xong
-    local success, data = pcall(function()
-        return readfile("GAG2_Settings.json")
-    end)
-    if success and data then
-        local ok, config = pcall(function()
-            return game:GetService("HttpService"):JSONDecode(data)
-        end)
-        if ok and config then
-            print("[Config] Dang tu dong tai cau hinh...")
-            for k, v in pairs(config) do
-                if k == "Theme" then
-                    _G.SavedTheme = v
-                    Fluent:SetTheme(v)
-                elseif Config[k] ~= nil then
-                    if type(v) == "table" and type(Config[k]) == "table" then
-                        for k2, v2 in pairs(v) do
-                            if Config[k][k2] ~= nil and type(v2) == type(Config[k][k2]) then
-                                Config[k][k2] = v2
-                            end
-                        end
-                    elseif type(v) == type(Config[k]) then
-                        Config[k] = v
-                    end
-                end
-            end
-            print("[Config] Da tu dong tai cau hinh!")
-        end
-    end
-end)
-
--- ============================================================
--- TỰ ĐỘNG LƯU KHI THOÁT GAME
--- ============================================================
-game:GetService("Players").LocalPlayer.OnTeleport:Connect(function()
-    SaveConfig()
-end)
-
--- ============================================================
--- UI - SECTION LƯU CẤU HÌNH
--- ============================================================
-local SaveSection = SettingTab:AddSection("Luu Cau Hinh")
-
-SaveSection:AddParagraph({
-    Title = "Tu Dong Luu",
-    Content = "Script tu dong luu cai dat khi thoat game\nva tu dong tai lai khi chay script lan sau."
-})
-
-SaveSection:AddButton({
-    Title = "Luu Cau Hinh Ngay",
-    Description = "Luu tat ca toggle va cai dat hien tai",
-    Callback = function()
-        SaveConfig()
-    end
-})
-
-SaveSection:AddButton({
-    Title = "Tai Cau Hinh",
-    Description = "Tai lai cau hinh da luu",
-    Callback = function()
-        LoadConfig()
-    end
-})
-
-SaveSection:AddButton({
-    Title = "Reset Cau Hinh",
-    Description = "Dua tat ca ve mac dinh",
-    Callback = function()
-        -- Reset Config
-        for k, v in pairs(DefaultConfig) do
-            if Config[k] ~= nil then
-                if type(v) == "table" and type(Config[k]) == "table" then
-                    for k2, v2 in pairs(v) do
-                        if Config[k][k2] ~= nil then
-                            Config[k][k2] = v2
-                        end
-                    end
-                else
-                    Config[k] = v
-                end
-            end
-        end
-        LagLevel = 0
-        applyLagLevel(0)
-        Fluent:SetTheme("Darker")
-        SaveConfig()
-        Fluent:Notify({
-            Title = "Reset",
-            Content = "Da reset ve mac dinh va luu!",
-            Duration = 2
-        })
-    end
-})
