@@ -1,7 +1,4 @@
--- EGG TOOLS V4
--- ANTI VANG + RETURN TO SAFE POSITION + TELEPORT + AUTO PICK
--- (UI đã được sửa – siêu nhỏ gọn, không đụng logic)
-
+-- EGG TOOLS V4 (UI FIXED – KHÔNG ĐỤNG LOGIC)
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -15,7 +12,7 @@ local autoPickActive = false
 local antiVangActive = true
 
 local TELE_DISTANCE = 400
-local FLING_SPEED = 90
+local FLING_SPEED = 1000
 local SAFE_UPDATE_DISTANCE = 12
 
 local Remote
@@ -26,7 +23,7 @@ pcall(function()
 end)
 
 -- =========================
--- UI MỚI – SIÊU NHỎ GỌN
+-- UI MỚI (SIÊU NHỎ GỌN – KHÔNG XOAY)
 -- =========================
 local gui = Instance.new("ScreenGui")
 gui.Name = "PHUCMAX_EGG_TOOLS"
@@ -35,46 +32,48 @@ gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 gui.Parent = LocalPlayer:WaitForChild("PlayerGui")
 
 local main = Instance.new("Frame")
-main.Size = UDim2.fromOffset(280, 210)
-main.Position = UDim2.new(0.5, -140, 0.5, -105)
+main.Size = UDim2.fromOffset(280, 200)
+main.AnchorPoint = Vector2.new(0.5, 0.5)  -- Căn giữa màn hình
+main.Position = UDim2.new(0.5, 0, 0.5, 0)
 main.BackgroundColor3 = Color3.fromRGB(9, 11, 18)
 main.BorderSizePixel = 0
 main.Active = true
 main.Parent = gui
+main.Rotation = 0  -- Chống xoay
 
 local corner = Instance.new("UICorner", main)
-corner.CornerRadius = UDim.new(0, 16)
+corner.CornerRadius = UDim.new(0, 14)
 
 local outline = Instance.new("UIStroke", main)
 outline.Color = Color3.fromRGB(72, 88, 125)
-outline.Transparency = 0.18
+outline.Transparency = 0.2
 outline.Thickness = 1
 
 -- Header
 local header = Instance.new("Frame")
-header.Size = UDim2.new(1, 0, 0, 56)
+header.Size = UDim2.new(1, 0, 0, 48)
 header.BackgroundColor3 = Color3.fromRGB(18, 23, 36)
 header.BorderSizePixel = 0
 header.Active = true
 header.Parent = main
 
 local hc = Instance.new("UICorner", header)
-hc.CornerRadius = UDim.new(0, 16)
+hc.CornerRadius = UDim.new(0, 14)
 
 local accent = Instance.new("Frame")
 accent.Size = UDim2.new(1, 0, 0, 2)
-accent.Position = UDim2.fromOffset(0, 54)
+accent.Position = UDim2.fromOffset(0, 46)
 accent.BackgroundColor3 = Color3.fromRGB(72, 154, 255)
 accent.BorderSizePixel = 0
 accent.Parent = header
 
 local logo = Instance.new("Frame")
-logo.Size = UDim2.fromOffset(34, 34)
-logo.Position = UDim2.fromOffset(8, 11)
+logo.Size = UDim2.fromOffset(32, 32)
+logo.Position = UDim2.fromOffset(8, 8)
 logo.BackgroundColor3 = Color3.fromRGB(31, 46, 73)
 logo.BorderSizePixel = 0
 logo.Parent = header
-Instance.new("UICorner", logo).CornerRadius = UDim.new(0, 10)
+Instance.new("UICorner", logo).CornerRadius = UDim.new(0, 8)
 
 local logoText = Instance.new("TextLabel")
 logoText.Size = UDim2.fromScale(1, 1)
@@ -87,20 +86,20 @@ logoText.Parent = logo
 
 local title = Instance.new("TextLabel")
 title.BackgroundTransparency = 1
-title.Position = UDim2.fromOffset(48, 12)
-title.Size = UDim2.new(1, -70, 0, 20)
+title.Position = UDim2.fromOffset(46, 10)
+title.Size = UDim2.new(1, -70, 0, 18)
 title.Text = "EGG TOOLS"
 title.TextColor3 = Color3.fromRGB(248, 250, 255)
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Font = Enum.Font.GothamBlack
-title.TextSize = 14
+title.TextSize = 13
 title.Parent = header
 
 local subtitle = Instance.new("TextLabel")
 subtitle.BackgroundTransparency = 1
-subtitle.Position = UDim2.fromOffset(49, 32)
-subtitle.Size = UDim2.new(1, -70, 0, 14)
-subtitle.Text = "MOBILE  •  FAST"
+subtitle.Position = UDim2.fromOffset(47, 28)
+subtitle.Size = UDim2.new(1, -70, 0, 12)
+subtitle.Text = "MOBILE • FAST"
 subtitle.TextColor3 = Color3.fromRGB(126, 145, 177)
 subtitle.TextXAlignment = Enum.TextXAlignment.Left
 subtitle.Font = Enum.Font.GothamMedium
@@ -108,47 +107,39 @@ subtitle.TextSize = 7
 subtitle.Parent = header
 
 local minimize = Instance.new("TextButton")
-minimize.Size = UDim2.fromOffset(28, 28)
-minimize.Position = UDim2.new(1, -34, 0, 12)
+minimize.Size = UDim2.fromOffset(26, 26)
+minimize.Position = UDim2.new(1, -32, 0, 10)
 minimize.BackgroundColor3 = Color3.fromRGB(31, 38, 55)
 minimize.Text = "—"
 minimize.TextColor3 = Color3.fromRGB(235, 240, 250)
 minimize.Font = Enum.Font.GothamBold
-minimize.TextSize = 14
+minimize.TextSize = 12
 minimize.AutoButtonColor = false
 minimize.Parent = header
-Instance.new("UICorner", minimize).CornerRadius = UDim.new(0, 8)
+Instance.new("UICorner", minimize).CornerRadius = UDim.new(0, 7)
 
--- Body
+-- Body – dùng UIListLayout để xếp dọc
 local body = Instance.new("Frame")
-body.Size = UDim2.new(1, -16, 1, -70)
-body.Position = UDim2.fromOffset(8, 62)
+body.Size = UDim2.new(1, -12, 1, -58)
+body.Position = UDim2.fromOffset(6, 54)
 body.BackgroundTransparency = 1
 body.Parent = main
 
--- Hàm tạo section
-local function makeSection(y, text)
-    local label = Instance.new("TextLabel")
-    label.BackgroundTransparency = 1
-    label.Position = UDim2.fromOffset(2, y)
-    label.Size = UDim2.new(1, -4, 0, 14)
-    label.Text = text
-    label.TextColor3 = Color3.fromRGB(100, 126, 166)
-    label.TextXAlignment = Enum.TextXAlignment.Left
-    label.Font = Enum.Font.GothamBold
-    label.TextSize = 8
-    label.Parent = body
-end
+local bodyLayout = Instance.new("UIListLayout")
+bodyLayout.FillDirection = Enum.FillDirection.Vertical
+bodyLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+bodyLayout.VerticalAlignment = Enum.VerticalAlignment.Top
+bodyLayout.Padding = UDim.new(0, 4)
+bodyLayout.Parent = body
 
 -- Hàm tạo toggle
-local function makeToggle(y, name, desc, default, callback)
+local function makeToggle(name, desc, default, callback)
     local card = Instance.new("Frame")
-    card.Size = UDim2.new(1, 0, 0, 50)
-    card.Position = UDim2.fromOffset(0, y)
+    card.Size = UDim2.new(1, 0, 0, 46)
     card.BackgroundColor3 = Color3.fromRGB(17, 22, 34)
     card.BorderSizePixel = 0
     card.Parent = body
-    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 12)
+    Instance.new("UICorner", card).CornerRadius = UDim.new(0, 10)
 
     local cs = Instance.new("UIStroke", card)
     cs.Color = Color3.fromRGB(55, 69, 96)
@@ -156,19 +147,19 @@ local function makeToggle(y, name, desc, default, callback)
 
     local nameLabel = Instance.new("TextLabel")
     nameLabel.BackgroundTransparency = 1
-    nameLabel.Position = UDim2.fromOffset(10, 7)
-    nameLabel.Size = UDim2.new(1, -85, 0, 16)
+    nameLabel.Position = UDim2.fromOffset(8, 5)
+    nameLabel.Size = UDim2.new(1, -80, 0, 15)
     nameLabel.Text = name
     nameLabel.TextColor3 = Color3.fromRGB(240, 244, 252)
     nameLabel.TextXAlignment = Enum.TextXAlignment.Left
     nameLabel.Font = Enum.Font.GothamBold
-    nameLabel.TextSize = 11
+    nameLabel.TextSize = 10
     nameLabel.Parent = card
 
     local descLabel = Instance.new("TextLabel")
     descLabel.BackgroundTransparency = 1
-    descLabel.Position = UDim2.fromOffset(10, 25)
-    descLabel.Size = UDim2.new(1, -85, 0, 14)
+    descLabel.Position = UDim2.fromOffset(8, 22)
+    descLabel.Size = UDim2.new(1, -80, 0, 12)
     descLabel.Text = desc
     descLabel.TextColor3 = Color3.fromRGB(126, 141, 166)
     descLabel.TextXAlignment = Enum.TextXAlignment.Left
@@ -177,8 +168,8 @@ local function makeToggle(y, name, desc, default, callback)
     descLabel.Parent = card
 
     local button = Instance.new("TextButton")
-    button.Size = UDim2.fromOffset(54, 26)
-    button.Position = UDim2.new(1, -64, 0.5, -13)
+    button.Size = UDim2.fromOffset(50, 24)
+    button.Position = UDim2.new(1, -60, 0.5, -12)
     button.BackgroundColor3 = default and Color3.fromRGB(48, 170, 112) or Color3.fromRGB(45, 52, 70)
     button.Text = default and "ON" or "OFF"
     button.TextColor3 = Color3.new(1, 1, 1)
@@ -197,20 +188,20 @@ local function makeToggle(y, name, desc, default, callback)
     end)
 end
 
--- Tạo section và các toggle
-makeSection(0, "ACTIONS")
-makeToggle(18, "TELEPORT", "Giữ khoảng cách với spawn", false, function(v)
+-- Tạo các toggle
+makeToggle("TELEPORT", "Giữ khoảng cách với spawn", false, function(v)
     teleportActive = v
 end)
-makeToggle(75, "AUTO PICK", "Tự động nhặt trứng gần", false, function(v)
+
+makeToggle("AUTO PICK", "Tự động nhặt trứng gần", false, function(v)
     autoPickActive = v
 end)
 
 -- Status label
 local status = Instance.new("TextLabel")
 status.BackgroundTransparency = 1
-status.Position = UDim2.fromOffset(0, 128)
-status.Size = UDim2.new(1, 0, 0, 14)
+status.Position = UDim2.fromOffset(0, 168)
+status.Size = UDim2.new(1, 0, 0, 12)
 status.Text = "● SYSTEM READY"
 status.TextColor3 = Color3.fromRGB(92, 190, 135)
 status.TextXAlignment = Enum.TextXAlignment.Center
@@ -255,7 +246,7 @@ local minimized = false
 minimize.MouseButton1Click:Connect(function()
     minimized = not minimized
     body.Visible = not minimized
-    main.Size = minimized and UDim2.fromOffset(280, 56) or UDim2.fromOffset(280, 210)
+    main.Size = minimized and UDim2.fromOffset(280, 48) or UDim2.fromOffset(280, 200)
     minimize.Text = minimized and "+" or "—"
 end)
 
