@@ -13,7 +13,7 @@ local antiVangActive = true
 
 local TELE_DISTANCE = 400
 local FLING_SPEED = 1000
-local SAFE_UPDATE_DISTANCE = 12
+local SAFE_UPDATE_DISTANCE = 1
 
 local Remote
 pcall(function()
