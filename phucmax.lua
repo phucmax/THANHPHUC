@@ -14,7 +14,7 @@ local teleportActive = false
 local autoPickActive = false
 local antiVangActive = true
 
-local TELE_DISTANCE = 300
+local TELE_DISTANCE = 400
 local FLING_SPEED = 90
 local SAFE_UPDATE_DISTANCE = 12
 
@@ -88,7 +88,7 @@ local title = Instance.new("TextLabel")
 title.BackgroundTransparency = 1
 title.Position = UDim2.fromOffset(78, 16)
 title.Size = UDim2.new(1, -95, 0, 27)
-title.Text = "EGG TOOLS"
+title.Text = "PM"
 title.TextColor3 = Color3.fromRGB(248, 250, 255)
 title.TextXAlignment = Enum.TextXAlignment.Left
 title.Font = Enum.Font.GothamBlack
@@ -187,23 +187,20 @@ local function makeToggle(y, name, desc, default, callback)
     local state = default
     button.MouseButton1Click:Connect(function()
         state = not state
-        button.Text = state and "ON" or "OFF"
+        button.Text = state and "cac" or "lon"
         button.BackgroundColor3 = state and Color3.fromRGB(48, 170, 112) or Color3.fromRGB(45, 52, 70)
         callback(state)
     end)
 end
 
-makeSection(0, "PROTECTION")
-makeToggle(21, "ANTI VANG", "Chan luc fling va dua ve vi tri an toan.", true, function(v)
-    antiVangActive = v
-end)
+
 
 makeSection(99, "ACTIONS")
-makeToggle(120, "TELEPORT 100", "Dat nhan vat cach SpawnLocation 100 studs.", false, function(v)
+makeToggle(120, "TELEPORT 100", "caclon.", false, function(v)
     teleportActive = v
 end)
 
-makeToggle(198, "AUTO PICK", "Tu tim egg gan nhat va goi RF bang UID.", false, function(v)
+makeToggle(198, "AUTO PICK", "Tu dong nhat.", false, function(v)
     autoPickActive = v
 end)
 
