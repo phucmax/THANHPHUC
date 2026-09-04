@@ -3295,11 +3295,31 @@ local function AutoStealLoop()
                     end
                 end
 
-                local pickedUp = iData.value83(target.uid)
+                local pickedUp = false
 
-                if not pickedUp then
-                    task.wait(0.1)
+                if iData.value14.FarmMethod == "TP" then
+                    -- After reaching the egg, keep hammering pickup for 3 seconds.
+                    local pickupDeadline = tick() + 3
+                    while tick() < pickupDeadline
+                        and AutoStealCharacterReady()
+                        and iData.value14.AutoSteal
+                        and iData.value84(target.uid)
+                    do
+                        if iData.value83(target.uid) then
+                            pickedUp = true
+                            if iData.value78() then
+                                break
+                            end
+                        end
+                        task.wait(0.0008)
+                    end
+                else
                     pickedUp = iData.value83(target.uid)
+
+                    if not pickedUp then
+                        task.wait(0.1)
+                        pickedUp = iData.value83(target.uid)
+                    end
                 end
 
                 if pickedUp then
