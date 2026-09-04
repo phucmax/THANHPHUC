@@ -1536,100 +1536,75 @@ function iData.value67(secondaryVector, alternateVector)
 	return { alternateVector }
 end
 function iData.value68(secondaryVector, secondaryFlag, callback, quaternaryArgument)
-	local secondaryInput = iData.value21()
-
-	if not secondaryInput then
+	local root = iData.value21()
+	local humanoid = iData.value22()
+	if not root or not humanoid then
 		return false
 	end
 
-	local Position = secondaryInput.Position
-	local vector = Vector3.new(secondaryVector.X - Position.X, 0, secondaryVector.Z - Position.Z)
-	local Magnitude = vector.Magnitude
-
-	if Magnitude <= 0.5 then
+	local startPosition = root.Position
+	local delta = Vector3.new(secondaryVector.X - startPosition.X, 0, secondaryVector.Z - startPosition.Z)
+	if delta.Magnitude <= 0.5 then
 		return true
 	end
 
-	local Unit = vector.Unit
-	local Rotation = CFrame.lookAt(Vector3.zero, Unit).Rotation
-	local sumNumber = iData.value60()
-	local sum = (iData.value59(Position.X, Position.Z, Position.Y - sumNumber) or Position.Y - sumNumber) + sumNumber
-	local number = 0
-	local position = Position
-	local secondarySum = tick() + Magnitude / iData.value10.TRAVEL_SPEED + 10
-	local flag = false
-	local timestamp = tick()
+	-- TP engine adapted from the standalone teleport script:
+	-- move by CFrame, then immediately clear linear/angular velocity.
+	-- The existing TP_WAIT is deliberately preserved; it is NOT reduced.
+	local route = {secondaryVector}
+	local ok, calculated = pcall(function()
+		return iData.value67(startPosition, secondaryVector)
+	end)
+	if ok and type(calculated) == "table" and #calculated > 0 then
+		route = calculated
+	end
 
-	while iData.value17() and quaternaryArgument == iData.value11.travelToken and (not callback or callback()) do
-		local dt = iData.value3.Heartbeat:Wait()
-		iData.value11.travelStep = tick()
-		local value21Result = iData.value21()
-		local updateInstancePropertiesCondition = iData.value22()
-		local capturedInput = value21Result
-		if
-			not capturedInput
-			or (
-				not capturedInput.Parent
-				or (not updateInstancePropertiesCondition or updateInstancePropertiesCondition.Health <= 0)
-			)
+	for index = 1, #route do
+		if not iData.value17()
+			or quaternaryArgument ~= iData.value11.travelToken
+			or (callback and not callback())
 		then
-			break
+			return false
 		end
-		if (capturedInput.Position - position).Magnitude > 2 then
-			position = capturedInput.Position
-			timestamp = tick()
-		elseif tick() - timestamp > 0.5 then
-			timestamp = tick()
-			iData.value55()
-		end
-		if secondarySum < tick() then
-			break
-		end
-		local quotientNumber = math.min(iData.value10.TRAVEL_SPEED * math.min(dt, 0.1), Magnitude - number)
-		local secondaryQuotientNumber = math.max(1, (math.ceil(quotientNumber / iData.value10.STEP_MAX)))
-		local quotient = quotientNumber / secondaryQuotientNumber
-		for _ = 1, secondaryQuotientNumber do
-			number = math.min(Magnitude, number + quotient)
 
-			local vector = Position + Unit * number
-			local condition = iData.value59(vector.X, vector.Z, sum - sumNumber)
-
-			if condition then
-				sum += math.clamp(condition + sumNumber - sum, -iData.value10.STEP_MAX * 4, iData.value10.STEP_MAX * 4)
-			end
-
-			if Magnitude <= number then
-				break
-			end
+		local target = route[index]
+		if typeof(target) ~= "Vector3" then
+			continue
 		end
-		local vector = Position + Unit * number
+
+		local groundY = iData.value59(target.X, target.Z, target.Y) or target.Y
+		local targetPosition = Vector3.new(target.X, groundY, target.Z)
+		local lookVector = targetPosition - root.Position
+		local rotation = lookVector.Magnitude > 0.01
+			and CFrame.lookAt(Vector3.zero, Vector3.new(lookVector.X, 0, lookVector.Z)).Rotation
+			or CFrame.identity
+
 		pcall(function()
-			capturedInput.CFrame = CFrame.new(vector.X, sum, vector.Z) * Rotation
+			root.CFrame = CFrame.new(targetPosition) * rotation
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
+			if humanoid.Health > 0 then
+				humanoid:ChangeState(Enum.HumanoidStateType.Physics)
+			end
 		end)
-		updateInstanceProperties(capturedInput, updateInstancePropertiesCondition)
-		if number >= Magnitude - 0.01 then
-			flag = true
 
-			break
+		iData.value11.travelStep = tick()
+
+		if index < #route then
+			task.wait(iData.value10.TP_WAIT)
 		end
 	end
 
-	if quaternaryArgument ~= iData.value11.travelToken then
+	local finalRoot = iData.value21()
+	if not finalRoot then
 		return false
 	end
 
-	if flag then
-		return true
-	end
-
-	local alternateInput = iData.value21()
-
-	if not alternateInput then
-		return false
-	end
-
-	return Vector3.new(secondaryVector.X - alternateInput.Position.X, 0, secondaryVector.Z - alternateInput.Position.Z).Magnitude
-		<= (secondaryFlag or 8)
+	return Vector3.new(
+		secondaryVector.X - finalRoot.Position.X,
+		0,
+		secondaryVector.Z - finalRoot.Position.Z
+	).Magnitude <= (secondaryFlag or 8)
 end
 iData.value10.TP_STEP = 45
 iData.value10.TP_WAIT = 0.08
