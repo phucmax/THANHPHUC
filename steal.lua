@@ -1536,75 +1536,100 @@ function iData.value67(secondaryVector, alternateVector)
 	return { alternateVector }
 end
 function iData.value68(secondaryVector, secondaryFlag, callback, quaternaryArgument)
-	local root = iData.value21()
-	local humanoid = iData.value22()
-	if not root or not humanoid then
+	local secondaryInput = iData.value21()
+
+	if not secondaryInput then
 		return false
 	end
 
-	local startPosition = root.Position
-	local delta = Vector3.new(secondaryVector.X - startPosition.X, 0, secondaryVector.Z - startPosition.Z)
-	if delta.Magnitude <= 0.5 then
+	local Position = secondaryInput.Position
+	local vector = Vector3.new(secondaryVector.X - Position.X, 0, secondaryVector.Z - Position.Z)
+	local Magnitude = vector.Magnitude
+
+	if Magnitude <= 0.5 then
 		return true
 	end
 
-	-- TP engine adapted from the standalone teleport script:
-	-- move by CFrame, then immediately clear linear/angular velocity.
-	-- The existing TP_WAIT is deliberately preserved; it is NOT reduced.
-	local route = {secondaryVector}
-	local ok, calculated = pcall(function()
-		return iData.value67(startPosition, secondaryVector)
-	end)
-	if ok and type(calculated) == "table" and #calculated > 0 then
-		route = calculated
-	end
+	local Unit = vector.Unit
+	local Rotation = CFrame.lookAt(Vector3.zero, Unit).Rotation
+	local sumNumber = iData.value60()
+	local sum = (iData.value59(Position.X, Position.Z, Position.Y - sumNumber) or Position.Y - sumNumber) + sumNumber
+	local number = 0
+	local position = Position
+	local secondarySum = tick() + Magnitude / iData.value10.TRAVEL_SPEED + 10
+	local flag = false
+	local timestamp = tick()
 
-	for index = 1, #route do
-		if not iData.value17()
-			or quaternaryArgument ~= iData.value11.travelToken
-			or (callback and not callback())
-		then
-			return false
-		end
-
-		local target = route[index]
-		if typeof(target) ~= "Vector3" then
-			continue
-		end
-
-		local groundY = iData.value59(target.X, target.Z, target.Y) or target.Y
-		local targetPosition = Vector3.new(target.X, groundY, target.Z)
-		local lookVector = targetPosition - root.Position
-		local rotation = lookVector.Magnitude > 0.01
-			and CFrame.lookAt(Vector3.zero, Vector3.new(lookVector.X, 0, lookVector.Z)).Rotation
-			or CFrame.identity
-
-		pcall(function()
-			root.CFrame = CFrame.new(targetPosition) * rotation
-			root.AssemblyLinearVelocity = Vector3.zero
-			root.AssemblyAngularVelocity = Vector3.zero
-			if humanoid.Health > 0 then
-				humanoid:ChangeState(Enum.HumanoidStateType.Physics)
-			end
-		end)
-
+	while iData.value17() and quaternaryArgument == iData.value11.travelToken and (not callback or callback()) do
+		local dt = iData.value3.Heartbeat:Wait()
 		iData.value11.travelStep = tick()
+		local value21Result = iData.value21()
+		local updateInstancePropertiesCondition = iData.value22()
+		local capturedInput = value21Result
+		if
+			not capturedInput
+			or (
+				not capturedInput.Parent
+				or (not updateInstancePropertiesCondition or updateInstancePropertiesCondition.Health <= 0)
+			)
+		then
+			break
+		end
+		if (capturedInput.Position - position).Magnitude > 2 then
+			position = capturedInput.Position
+			timestamp = tick()
+		elseif tick() - timestamp > 0.5 then
+			timestamp = tick()
+			iData.value55()
+		end
+		if secondarySum < tick() then
+			break
+		end
+		local quotientNumber = math.min(iData.value10.TRAVEL_SPEED * math.min(dt, 0.1), Magnitude - number)
+		local secondaryQuotientNumber = math.max(1, (math.ceil(quotientNumber / iData.value10.STEP_MAX)))
+		local quotient = quotientNumber / secondaryQuotientNumber
+		for _ = 1, secondaryQuotientNumber do
+			number = math.min(Magnitude, number + quotient)
 
-		if index < #route then
-			task.wait(iData.value10.TP_WAIT)
+			local vector = Position + Unit * number
+			local condition = iData.value59(vector.X, vector.Z, sum - sumNumber)
+
+			if condition then
+				sum += math.clamp(condition + sumNumber - sum, -iData.value10.STEP_MAX * 4, iData.value10.STEP_MAX * 4)
+			end
+
+			if Magnitude <= number then
+				break
+			end
+		end
+		local vector = Position + Unit * number
+		pcall(function()
+			capturedInput.CFrame = CFrame.new(vector.X, sum, vector.Z) * Rotation
+		end)
+		updateInstanceProperties(capturedInput, updateInstancePropertiesCondition)
+		if number >= Magnitude - 0.01 then
+			flag = true
+
+			break
 		end
 	end
 
-	local finalRoot = iData.value21()
-	if not finalRoot then
+	if quaternaryArgument ~= iData.value11.travelToken then
 		return false
 	end
 
-	return Vector3.new(
-		secondaryVector.X - finalRoot.Position.X,
-		0,
-		secondaryVector.Z - finalRoot.Position.Z
-	).Magnitude <= (secondaryFlag or 8)
+	if flag then
+		return true
+	end
+
+	local alternateInput = iData.value21()
+
+	if not alternateInput then
+		return false
+	end
+
+	return Vector3.new(secondaryVector.X - alternateInput.Position.X, 0, secondaryVector.Z - alternateInput.Position.Z).Magnitude
+		<= (secondaryFlag or 8)
 end
 iData.value10.TP_STEP = 400
 iData.value10.TP_WAIT = 0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005
@@ -1633,7 +1658,7 @@ local function updateHatchCursor(secondaryVector, flag, hatchCursorCallback, qua
 	local sumNumber = 0
 	local updateHatchCursorNumber = math.ceil(Magnitude / iData.value10.TP_STEP)
 	local position = Position
-	local number = tick() + updateHatchCursorNumber * (iData.value10.TP_WAIT + 0.06) + 10
+	local number = tick() + updateHatchCursorNumber * (iData.value10.TP_WAIT + 0.00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000005) + 400
 	local timestamp = tick()
 
 	while
@@ -2986,52 +3011,6 @@ local function AutoStealCharacterReady()
     return iData.value23()
 end
 
-local function AutoStealTPSpamToHome()
-    local homePosition
-
-    local deliveryPosition = iData.value73()
-    if deliveryPosition then
-        homePosition = deliveryPosition.Position
-    end
-
-    if not homePosition then
-        local plot = iData.value72()
-        if plot then
-            pcall(function()
-                homePosition = plot:GetPivot().Position
-            end)
-        end
-    end
-
-    if not homePosition then
-        return false
-    end
-
-    local attempts = 0
-    while iData.value17()
-        and iData.value14.AutoSteal
-        and AutoStealCharacterReady()
-    do
-        local root = iData.value21()
-        if root and (root.Position - homePosition).Magnitude <= 0.5 then
-            return true
-        end
-
-        attempts += 1
-        if attempts > 120 then
-            return false
-        end
-
-        if iData.value68(homePosition, true, AutoStealCharacterReady, iData.value11.travelToken) then
-            return true
-        end
-
-        task.wait(iData.value10.TP_WAIT)
-    end
-
-    return false
-end
-
 local function AutoStealDeliverEgg(uid)
     local plot = iData.value72()
     local plotPivot
@@ -3341,31 +3320,11 @@ local function AutoStealLoop()
                     end
                 end
 
-                local pickedUp = false
+                local pickedUp = iData.value83(target.uid)
 
-                if iData.value14.FarmMethod == "TP" then
-                    -- After reaching the egg, keep hammering pickup for 3 seconds.
-                    local pickupDeadline = tick() + 3
-                    while tick() < pickupDeadline
-                        and AutoStealCharacterReady()
-                        and iData.value14.AutoSteal
-                        and iData.value84(target.uid)
-                    do
-                        if iData.value83(target.uid) then
-                            pickedUp = true
-                            if iData.value78() then
-                                break
-                            end
-                        end
-                        task.wait(0.0008)
-                    end
-                else
+                if not pickedUp then
+                    task.wait(0.1)
                     pickedUp = iData.value83(target.uid)
-
-                    if not pickedUp then
-                        task.wait(0.1)
-                        pickedUp = iData.value83(target.uid)
-                    end
                 end
 
                 if pickedUp then
@@ -3375,11 +3334,6 @@ local function AutoStealLoop()
                     iData.value11.carryingLastPos = root and root.Position or target.pos
                     iData.value11.deliverAt = tick()
                     iData.value11.deliverFails = 0
-
-                    -- Egg is acquired: immediately spam TP back home.
-                    if iData.value14.FarmMethod == "TP" then
-                        AutoStealTPSpamToHome()
-                    end
 
                     if AutoStealDeliverEgg(target.uid) then
                         iData.value11.carryingUid = nil
