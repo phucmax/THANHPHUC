@@ -27,7 +27,7 @@ iData.value14 = {
 	AutoPickEgg = true,
 	AutoStealRunMode = false,
 	FarmMethod = "TP",
-	AutoStealSpeed = 1000,
+	AutoStealSpeed = 800,
 	FarmMethod = "Speed",
 	AntiTrap = true,
 	AreaFocus = {},
@@ -7909,8 +7909,8 @@ end)
 -- INFO — exactly two buttons.
 -- ------------------------------------------------------------
 TabInfo:Section({Title="INFO"})
-TabInfo:Button({Title="Copy TikTok Link", Desc="Không có link TikTok thật trong source hiện tại.", Callback=function() iData.value18("INFO","Source không chứa TikTok URL thật; không bịa link.",4) end})
-TabInfo:Button({Title="Copy Discord Link", Desc="Không có link Discord thật trong source hiện tại.", Callback=function() iData.value18("INFO","Source không chứa Discord URL thật; không bịa link.",4) end})
+TabInfo:Button({Title="Copy TikTok Link", Desc="tiktok.com/@phucmaxt.", Callback=function() iData.value18("INFO","tiktok.com/@phucmaxt.",4) end})
+TabInfo:Button({Title="Copy Discord Link", Desc="https://discord.gg/9R9QvtXEbV.", Callback=function() iData.value18("INFO","https://discord.gg/9R9QvtXEbV.",4) end})
 
 pcall(function() iData.value12.Window:SelectTab(1) end)
 pcall(function()
