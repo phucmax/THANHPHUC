@@ -2986,6 +2986,52 @@ local function AutoStealCharacterReady()
     return iData.value23()
 end
 
+local function AutoStealTPSpamToHome()
+    local homePosition
+
+    local deliveryPosition = iData.value73()
+    if deliveryPosition then
+        homePosition = deliveryPosition.Position
+    end
+
+    if not homePosition then
+        local plot = iData.value72()
+        if plot then
+            pcall(function()
+                homePosition = plot:GetPivot().Position
+            end)
+        end
+    end
+
+    if not homePosition then
+        return false
+    end
+
+    local attempts = 0
+    while iData.value17()
+        and iData.value14.AutoSteal
+        and AutoStealCharacterReady()
+    do
+        local root = iData.value21()
+        if root and (root.Position - homePosition).Magnitude <= 0.5 then
+            return true
+        end
+
+        attempts += 1
+        if attempts > 120 then
+            return false
+        end
+
+        if iData.value68(homePosition, true, AutoStealCharacterReady, iData.value11.travelToken) then
+            return true
+        end
+
+        task.wait(iData.value10.TP_WAIT)
+    end
+
+    return false
+end
+
 local function AutoStealDeliverEgg(uid)
     local plot = iData.value72()
     local plotPivot
@@ -3329,6 +3375,11 @@ local function AutoStealLoop()
                     iData.value11.carryingLastPos = root and root.Position or target.pos
                     iData.value11.deliverAt = tick()
                     iData.value11.deliverFails = 0
+
+                    -- Egg is acquired: immediately spam TP back home.
+                    if iData.value14.FarmMethod == "TP" then
+                        AutoStealTPSpamToHome()
+                    end
 
                     if AutoStealDeliverEgg(target.uid) then
                         iData.value11.carryingUid = nil
